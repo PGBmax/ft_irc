@@ -1,4 +1,5 @@
-NAME = ft_irc
+
+NAME = ircserv
 
 INCLUDES = include/
 
