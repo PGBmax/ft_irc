@@ -193,4 +193,31 @@ POLLIN = le serveur surveille si le client a écrit quelque chose et reçoit l�
 
 
 handleClientData(int fd)
-1 :
+1 : on creer un tableau de 1024 caracteres pour recevoir les messages du client.
+    c est un buffer temporaire que le serveur creer a chaque fois pour lire et traiter les messages d un client.
+
+Client écrit -> Socket client send() -> Kernel buffer -> poll détecte POLLIN -> serveur appelle recv -> buff rempli
+Le client envoie → le kernel stocke → le serveur récupère avec recv.
+recv lit depuis la socket du client et copie dans le buff serveur.
+
+2 : on met chaque case a 0 avec memset();
+3 : Appelle recv pour lire les données envoyées par le client sur la socket fd.
+    ssize_t recv(int s, void *buf, ssize_t len, int flags);
+    recv() : Client écrit → les octets vont dans le tampon de la socket côté kernel.
+            Serveur appelle recv → kernel copie les octets dans le buff serveur.
+            recv retourne le nombre d’octets reçus (bytes).
+            Ensuite, le seveur peut traiter buff (afficher, parser, etc.).
+ssize_t : version signé de size_t
+    si positif → nombre d’octets reçus
+    si 0 → client a fermé la connexion proprement
+    si négatif → erreur (recv a échoué)
+4 : Transforme le tableau de caractères en std::string pour faciliter la manipulation et le parsing.
+5 : Parser le message sur chaque CRLF (\r\n) :
+-->Cherche la fin de chaque message IRC marqué par \r\n.
+-->Extrait chaque commande complète (JOIN, NICK, etc.)
+-->Supprime la commande traitée du message
+-->Affiche la commande traitée (ou la remplacer par le code réel pour l’exécuter).
+6 : Gérer les fragments restants :
+-->Si le dernier fragment n’a pas de \r\n → message incomplet.
+    Il faut le stocker temporairement pour le concaténer avec le prochain recv 
+    pour ne pas perdre de donnée 

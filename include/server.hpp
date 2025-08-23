@@ -49,3 +49,5 @@ class Server
         //donc il n existe qu'une seul fois pour le serveur
     
 };
+
+void ClearClient(int fd);

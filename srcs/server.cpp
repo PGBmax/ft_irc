@@ -111,7 +111,6 @@ void Server::initServ()
 
 void Server::acceptNewClient()
 {
-
     Client cli;
     struct sockaddr_in newClientAddress;
     struct pollfd newClientPoll;
@@ -141,13 +140,60 @@ void Server::acceptNewClient()
     std::cout << "Client <" << clientFd << "> Connected" << std::endl;
 }
 
-
-void Server::handleClientData(int fd)
-{
-    Identifier le client via le fd.
+Identifier le client via le fd.
     Lire les données envoyées par le client.
     Vérifier si le client a fermé la connexion ou si erreur.
     Traiter les données reçues.
     Envoyer une réponse si nécessaire.
+
+
+void ClearClient(int fd); // a rediger
+
+void Server::handleClientData(int fd)
+{
+    char buff[1024];
+    memset(buff, 0, sizeof(buff));
+
+    ssize_t bytes = recv(fd, buff, sizeof(buff) - 1, 0);
+    if (bytes <= 0)
+    {
+        std::cout << "Client <" << fd << "> disconnected" << std::endl;
+		ClearClient(fd);
+		close(fd);
+    }
+    else 
+    {    
+        buff[bytes] = '\0';
+
+        //on affiche le message reçu
+        std::cout << YEL << "Client <" << fd << "> Data: " << WHI << buff << "\n";
+
+        //convertir le buffer en string pour manipuler facilement
+        std::string message(buff);
+
+        //parser le messag en découpant sur chaque CRLF (\r\n)
+        size_t pos = 0;
+        while ((pos = message.find("\r\n")) != std::string::npos)
+        {
+            std::string command = message.substr(0, pos); // extraire la cmd
+            message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
+
+            // exécute les cmd IRC
+        //     if (command.starts_with("JOIN "))
+        //         handleJoin(command, fd);
+        //     else if (command.starts_with("NICK "))
+        //         handleNick(command, fd);
+        //     else if (command.starts_with("PRIVMSG "))
+        //         handlePrivMsg(command, fd);
+        //     else
+        //         std::cout << "Command not found : " << command << "\n";
+        // }
+        // //S il reste un fragment sans CRLF, on peut le stocker pour le concaténer avec le prochain recv
+        // if (!message.empty())
+        // {
+        //     //stocker dans un buffer temporaire associé au client
+        //     //pour le traiter lors du prochain recv
+        }
+    }
 }
 
