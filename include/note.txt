@@ -17,7 +17,7 @@
 
 poll — pour surveiller plusieurs sockets (à la place de select)
 
-fcntl — pour mettre des sockets en non-bloquant
+fcntl — pour mettre des sockets en non-bloquant fcntl() → fonction qui modifie les options d’un descripteur de fichier.
 
 signal/sigaction — pour gérer les signaux (comme SIGINT, SIGPIPE, etc.)
 
@@ -25,14 +25,6 @@ fstat, lseek — pas forcément utiles à moins que ton serveur manipule des fic
 
 
 
-
-// fonctions autorisé restant
-//  freeaddrinfo, 
-//   connect,    htons,
-//         getsockname,
-// getprotobyname, gethostbyname, getaddrinfo,
-// htonl, ntohs, ntohl, inet_addr, 
-//    lseek, fstat,  
 
 
 std::vector<Client> clients --> je creer un conteneur , les objets contenu dedans seront des objets de type Client et clients est le nom de la variable.
@@ -69,3 +61,136 @@ Et tu vérifieras aussi :
 Si recv() retourne 0 → déconnexion propre
 
 Si revents contient POLLERR → erreur grave → tu fermes aussi
+
+
+
+
+
+
+
+
+Serveur est une grande boite qui a un IP et un port.
+On creer un socket (une petite boite), qui a un fd , et ce socket va permetrre au sevreur de revevoir et envoyer des donnees.
+la methode bind() permet de relier le socket a l adresse ip et au port du serveur.
+Et donc apres appel bind() , toute connexion a cet ip et a ce port doit passer par ce socket.
+Apres cela, le serveur fait appel a listen() . listen met le serveur en mode ecoute.
+Si il y a une demande de connexion ,le serveur appel accept()
+
+
+on creer le socket() du serveur qui renvoie un fd 
+throw(std::runtime_error("creation socket server failed")); // capture l erreur et quitte proprement le progrm 
+
+
+SIGNIFICATION : this->_serverSocketFd = socket(AF_INET, SOCK_STREAM, 0);
+Quand on crée un socket, on doit dire quel genre de communication on veut mettre en place. Ça se définit avec trois choix :
+*Le DOMAINE d'ADRESSAGE(famille d’adresses) → sur quel réseau on veut travailler
+    IPv4 : les adresses classiques 192.168.x.x  --> AF_INET
+    IPv6 : les adresses plus longues 2001:0db8:...
+👉 En gros : est-ce qu on veut un serveur qui parle IPv4, IPv6, ou autre (Unix local, etc.).
+
+*Le TYPE → comment on veut que les données circulent
+    Stream (TCP) : communication fiable, ordonnée, sans pertes. Comme un appel téléphonique.
+👉 Pour un serveur IRC, c’est forcément stream (TCP). --> SOCK_STREAM
+
+*Le PROTOCOLE → le protocole utilisé avec ce type
+    La plupart du temps, quand on dit "Stream" on veut dire TCP.
+    Du coup on met presque toujours 0 pour laisser le système choisir automatiquement le bon protocole. --> 0
+
+createSocket():
+- 1: creer un socket : this->_serverSocketFd = socket(AF_INET, SOCK_STREAM, 0);
+-->crée un socket serveur TCP en IPv4.
+
+- 2 : on configure le serveur avec setsockopt()
+SO_REUSEADDR → l’option en question.
+Ça permet de : si on arrête le serveur puis on le relances tout de suite sur le même port, 
+sans cette option on pourrait avoir l’erreur Address already in use et Avec SO_REUSEADDR, on évite cela.
+
+- 3 : on rend le serveur non bloquant avec fcntl()
+--> Sans O_NONBLOCK → le serveur reste figé dès qu’il attend un client ou des données.
+--> Avec O_NONBLOCK → le serveur ne bloque pas, il peut vérifier régulièrement s’il y a des clients ou des messages
+et faire d’autres tâches en même temps.
+En mode O_NONBLOCK,le serveur peut continuer à tourner et faire autre chose même s’il n’y a aucune connexion ou message entrant.
+
+- 4 : on associe le socket a une adress IP et un port avec bind()
+--> C’est ce qui fait que le serveur écoute sur une adresse précise et que les clients savent où se connecter.
+
+- 5 : on passe le socket en mode ECOUTE avec listen();
+ "Ok, mon socket est maintenant un serveur. Il peut écouter les clients qui veulent se connecter. 
+ Les clients qui arrivent sont mis dans une file d’attente si je ne peux pas les accepter tout de suite."
+
+
+
+initServ() :
+
+poll() = guetteur universel : il surveille tous tes sockets.
+Il ne lit/écrit rien par lui-même, il te dit seulement :
+"tel fd est prêt à être lu"
+"tel fd est prêt à être écrit"
+"tel fd a planté ou s’est fermé"
+Toi, tu prends la décision ensuite (accept, recv, send, close).
+
+1 : on donne un port 4444 au serveur
+2 : on appelle la methode createSocket()
+3 : on boucle tant que signal est false (_signal est static donc on doit ecrire Server devant, elle existe une seule fois pr tte la class)
+4 : int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+--> poll attend struct pollfd *fds : un pointeur vers le debut du tableau de pollfd
+    chaque element du tableau contient un fd a surveiller
+--> nfds_t nfds : nbre de fd a sureveiller dans le tableau
+--> int timeout : Durée maximale (en millisecondes) d’attente d’un événement sur les fd : -1 → attendre indéfiniment (bloquant).
+On interprete le int retoouner par poll() : 🔹 Valeur de retour
+> 0 → nombre de fd prêts → il y a des événements à traiter.
+0 → aucun fd prêt (timeout atteint).
+-1 → erreur → vérifier errno pour connaître la cause.
+5 : 
+
+
+Le serveur passe le tableau de fd a poll(), 
+le serveur demande a poll de surveiller tel events d un tel fd 
+poll va verifier chaque events sur chaque fd , 
+si un fd a eu un events, poll va le mettre daans revents 
+a la fin poll va renvoyer le tableau et mettre a jour le revents de chaque fd
+le serveur va ensuite verifier chaque fd et en fonction des events qui ont eu lieu , va appeler la methode correspondant
+
+Serveur parcourt _fds
+Examine revents de chaque fd.
+Selon l’événement détecté :
+Serveur + POLLIN → accept() pour un nouveau client
+Client + POLLIN → recv() pour lire le message
+Client + POLLHUP → close() et retire le fd du tableau
+Client + POLLERR → gérer l’erreur
+
+
+acceptNewClient() :
+1 : Création d’un objet Client
+2 : Déclaration des structures temporaires
+3 : Acceptation de la connexion : 
+-->Accepte un nouveau client sur le socket serveur.
+-->Retourne le fd du client (clientFd).
+-->remplit newClientAddress avec l’IP et le port.
+4 : Passage du fd en mode non-bloquant
+-->Permet de lire/écrire sans bloquer le serveur.
+5 : Préparation de la structure pollfd
+6 : Remplissage de l’objet Client
+7 : Ajout du client dans les vecteurs du serveur
+
+
+struct sockaddr_in contient uniquement :
+IP du client (sin_addr)
+Port du client (sin_port)
+Famille d’adresse (sin_family, toujours AF_INET pour IPv4)
+
+len = taille de la structure d’adresse client → nécessaire pour que accept() fonctionne correctement.
+O_NONBLOCK → flag qui rend le fd non-bloquant.
+En d’autres termes : on rend le socket du client non bloquant, ce qui permet au serveur de lire 
+ou écrire dessus sans jamais se bloquer si aucune donnée n’est disponible.
+
+POLLIN est un flag qu’on met dans events pour dire :
+« Je veux être prévenu quand il y a des données à lire sur ce fd. »
+Quand le client envoie des données, le socket devient lisible.
+poll() va alors remplir revents pour ce fd, indiquant que POLLIN est déclenché.
+Le serveur peut alors lire le fd correspondant sans bloquer.
+POLLIN = le serveur surveille si le client a écrit quelque chose et reçoit l’info via revents.
+
+
+handleClientData(int fd)
+1 :

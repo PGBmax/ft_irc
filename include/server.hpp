@@ -10,49 +10,42 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#ifndef SERVER_HPP
-# define SERVER_HPP
+#pragma once
 
 // fontions autorisé utile pour le serveur: 
 // socket,/ listen,/ accept,/ close,/ setsockopt,/ 
 // bind,/ recv,/ send,/ poll/ 
 // signal,/  sigaction, fcntl,/ inet_ntoa,/ 
 
-// le cycle de vie complet d’un vrai serveur :
-// prépare ce qu’il faut (socket, configuration)
-// exécute la boucle (écoute, accepte, lit, écrit)
-// gère les clients (ajoute, supprime, communique)
-// nettoie à la fin
 
-#include <iostream>
+
 #include <vector> //-> for vector
-#include <sys/socket.h> //-> for socket()
-#include <sys/types.h> //-> for socket()
-#include <netinet/in.h> //-> for sockaddr_in
-#include <fcntl.h> //-> for fcntl()
-#include <unistd.h> //-> for close()
-#include <arpa/inet.h> //-> for inet_ntoa()
 #include <poll.h> //-> for poll()
-#include <csignal> //-> for signal()
-
-class Client;
+#include "Client.hpp"
 
 
-class server
+class Server
 {
     public :
+        Server();
+        void initServ();
+        void createSocket(); // run()
 
+        //sert uniquement à accepter une nouvelle connexion entrante sur le socket d’écoute
+        void acceptNewClient();// on ecoute si un client est en demande de connnection et on accepte
+        void handleClientData(int fd);// gerer tous ce que le client fait
 
+        static void handleSignal(int signal);
 
-
-
+        void closeAllFds();
+        void clearClient(int fd);
 
     private :
-        int port;
-        int serverFd;
-        std::vector<Client> clients;
+        int _port;
+        int _serverSocketFd;
+        std::vector<Client> _clients;
+        std::vector<struct pollfd> _fds;
+        static bool _signal; // un membre static aapartient a la classe pas a chaque objet 
+        //donc il n existe qu'une seul fois pour le serveur
     
 };
-
-
-#endif
