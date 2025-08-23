@@ -29,5 +29,5 @@ int main()
 		ser.closeAllFds(); //-> close the file descriptors
 		std::cerr << error.what() << std::endl;
 	}
-	std::cout << "The Server Closed!" << std::endl;
+	std::cout << "The Server is Closed!" << std::endl;
 }
