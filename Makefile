@@ -7,7 +7,7 @@ CPP_FLAGS = -I$(INCLUDES) -Wall -Werror -Wextra -g -std=c++98
 CC = c++
 
 SRC_DIR		=	srcs/
-SRC_NAME	=	main.cpp
+SRC_NAME	=	main.cpp Server.cpp Client.cpp
 
 OBJ_DIR = obj/
 OBJ_NAME = $(SRC_NAME:.cpp=.o)

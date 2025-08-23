@@ -221,3 +221,12 @@ ssize_t : version signé de size_t
 -->Si le dernier fragment n’a pas de \r\n → message incomplet.
     Il faut le stocker temporairement pour le concaténer avec le prochain recv 
     pour ne pas perdre de donnée 
+
+
+
+struct pollfd {
+    int fd;          // 👈 c'est le file descriptor
+    short events;
+    short revents;
+};
+on y accede _fds[i].fd ou _fds[i].events etc.....

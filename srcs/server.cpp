@@ -11,10 +11,10 @@
 /* ************************************************************************** */
 
 
-#include "Server.hpp"
-#include "Client.hpp"
 
 #include <iostream>
+#include "Client.hpp"
+#include "Server.hpp"
 #include <sys/socket.h> //-> for socket()
 #include <sys/types.h> //-> for socket()
 #include <netinet/in.h> //-> for sockaddr_in
@@ -24,12 +24,19 @@
 #include <csignal> //-> for signal()
 
 
-Server::Server() : _serverSocketFd(-1), _port(0)
+Server::Server() :  _port(0), _serverSocketFd(-1)
 {
     std::cout << "Server constructor is created" << std::endl;
 }
 
 bool Server::_signal = false;
+
+void Server::handleSignal(int signal)
+{
+    (void)signal;
+    std::cout << std::endl << "Signal Received!" << std::endl;
+    Server::_signal = true;
+}
 
 void Server::createSocket()
 {
@@ -118,7 +125,7 @@ void Server::acceptNewClient()
 
     //on accepte une nouvelle connexion sur le socket serveur
     //et le descripteur du client connecté est retourné
-    int clientFd = accept(_serverSocketFd, (sockaddr *)&(newClientAddress), &len)
+    int clientFd = accept(_serverSocketFd, (sockaddr *)&(newClientAddress), &len);
     if (clientFd == -1)
     {
         std::cout << "accept() failed" << std::endl;
@@ -140,14 +147,27 @@ void Server::acceptNewClient()
     std::cout << "Client <" << clientFd << "> Connected" << std::endl;
 }
 
-Identifier le client via le fd.
-    Lire les données envoyées par le client.
-    Vérifier si le client a fermé la connexion ou si erreur.
-    Traiter les données reçues.
-    Envoyer une réponse si nécessaire.
 
-
-void ClearClient(int fd); // a rediger
+void Server::clearClient(int fd)
+{
+    for(size_t i = 0; i < _fds.size(); i++)
+    {
+        if (_fds[i].fd == fd)
+        {
+            _fds.erase(_fds.begin() + i);
+            break ;
+        }
+    }
+    for(size_t i = 0; i < _clients.size(); i++)
+    {
+        if (_clients[i].getFd() == fd)
+        {
+            //close(_clients[i].getFd());
+            _clients.erase(_clients.begin() + i);
+            break ;
+        }
+    }
+}
 
 void Server::handleClientData(int fd)
 {
@@ -158,7 +178,7 @@ void Server::handleClientData(int fd)
     if (bytes <= 0)
     {
         std::cout << "Client <" << fd << "> disconnected" << std::endl;
-		ClearClient(fd);
+		clearClient(fd);
 		close(fd);
     }
     else 
@@ -166,17 +186,17 @@ void Server::handleClientData(int fd)
         buff[bytes] = '\0';
 
         //on affiche le message reçu
-        std::cout << YEL << "Client <" << fd << "> Data: " << WHI << buff << "\n";
+        std::cout << "Client <" << fd << "> Data: " << buff << "\n";
 
         //convertir le buffer en string pour manipuler facilement
-        std::string message(buff);
+        // std::string message(buff);
 
-        //parser le messag en découpant sur chaque CRLF (\r\n)
-        size_t pos = 0;
-        while ((pos = message.find("\r\n")) != std::string::npos)
-        {
-            std::string command = message.substr(0, pos); // extraire la cmd
-            message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
+        // //parser le messag en découpant sur chaque CRLF (\r\n)
+        // size_t pos = 0;
+        // while ((pos = message.find("\r\n")) != std::string::npos)
+        // {
+        //     std::string command = message.substr(0, pos); // extraire la cmd
+        //     message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
 
             // exécute les cmd IRC
         //     if (command.starts_with("JOIN "))
@@ -193,7 +213,28 @@ void Server::handleClientData(int fd)
         // {
         //     //stocker dans un buffer temporaire associé au client
         //     //pour le traiter lors du prochain recv
-        }
+        //}
     }
 }
+
+void Server::closeAllFds()
+{
+    //femer tous les socketsfds des clients
+    for(size_t i = 0; i < _clients.size(); i++)
+    {
+        std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
+        close(_clients[i].getFd());
+    }
+    // fermer le fd du serveur
+    if (_serverSocketFd != -1)
+    {
+		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
+		close(_serverSocketFd);
+        //_serverSocketFd = -1;
+    }
+    // Vider complètement les vecteurs pour libérer la mémoire
+    // _clients.clear();
+    // _fds.clear();
+}
+
 
