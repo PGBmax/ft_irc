@@ -11,7 +11,7 @@
 /* ************************************************************************** */
 
 #include <iostream>
-#include "Server.hpp"
+#include "server.hpp"
 #include "Client.hpp"
 
 int main()

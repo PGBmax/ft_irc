@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include "Client.hpp"
-#include "Server.hpp"
+#include "server.hpp"
 
 Client::Client() : _fd(-1), _ip("")
 {
