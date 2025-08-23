@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   server.cpp                                         :+:      :+:    :+:   */
+/*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -14,7 +14,7 @@
 
 #include <iostream>
 #include "Client.hpp"
-#include "Server.hpp"
+#include "server.hpp"
 #include <sys/socket.h> //-> for socket()
 #include <sys/types.h> //-> for socket()
 #include <netinet/in.h> //-> for sockaddr_in
