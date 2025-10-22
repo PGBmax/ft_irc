@@ -1,26 +1,18 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   server.hpp                                         :+:      :+:    :+:   */
+/*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
+/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/08/19 12:45:34 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/10/22 19:27:46 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #pragma once
 
-// fontions autorisé utile pour le serveur: 
-// socket,/ listen,/ accept,/ close,/ setsockopt,/ 
-// bind,/ recv,/ send,/ poll/ 
-// signal,/  sigaction, fcntl,/ inet_ntoa,/ 
-
-
-
-#include <vector> //-> for vector
-#include <poll.h> //-> for poll()
+#include <vector>
 #include "Client.hpp"
 
 
@@ -28,7 +20,7 @@ class Server
 {
     public :
         Server();
-        void initServ();
+        void initServ(const size_t &port, const std::string &password);
         void createSocket(); // run()
 
         //sert uniquement à accepter une nouvelle connexion entrante sur le socket d’écoute
@@ -43,6 +35,7 @@ class Server
     private :
         int _port;
         int _serverSocketFd;
+        std::string _password;
         std::vector<Client> _clients;
         std::vector<struct pollfd> _fds;
         static bool _signal; // un membre static aapartient a la classe pas a chaque objet 

@@ -3,26 +3,14 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
+/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/08/19 10:57:47 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/10/22 19:28:37 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-
-
-#include <iostream>
-#include "Client.hpp"
-#include "server.hpp"
-#include <sys/socket.h> //-> for socket()
-#include <sys/types.h> //-> for socket()
-#include <netinet/in.h> //-> for sockaddr_in
-#include <fcntl.h> //-> for fcntl()
-#include <unistd.h> //-> for close()
-#include <arpa/inet.h> //-> for inet_ntoa()
-#include <csignal> //-> for signal()
-
+#include "Irc.hpp"
 
 Server::Server() :  _port(0), _serverSocketFd(-1)
 {
@@ -81,12 +69,14 @@ void Server::createSocket()
 
 }
 
-void Server::initServ()
+void Server::initServ(const size_t &port, const std::string &password)
 {
-    this->_port = 4444; // porte d'entree pour les clients
+    this->_port = port; // porte d'entree pour les clients
+    this->_password = password; // MDP du serveur
 
     createSocket();
     std::cout << "Server socket <" << _serverSocketFd << "> connected." << std::endl;
+    std::cout << "Server port : " << this->_port << std::endl; 
     std::cout << "Waiting for incoming client connections..." << std::endl;
 
     while (Server::_signal == false) // _signal est static 

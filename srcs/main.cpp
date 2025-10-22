@@ -3,30 +3,31 @@
 /*                                                        :::      ::::::::   */
 /*   main.cpp                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
+/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/18 13:50:38 by nolecler          #+#    #+#             */
-/*   Updated: 2025/08/18 13:50:46 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/10/22 19:27:08 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <iostream>
-#include "server.hpp"
-#include "Client.hpp"
+#include "Irc.hpp"
 
-int main()
+int main(int ac, char **av)
 {
-	Server ser;
+	if (ac != 3) {std::cerr << RGB(255,0,0) << "Error:\nCorrect Usage -> ./ircserv <port> <password>" << std::endl; return 0;}
+	std::string password = av[2];
+	size_t		port = static_cast<size_t>(strtod(av[1], NULL));
+	Server serv;
 	std::cout << "---- SERVER ----" << std::endl;
 	try
 	{
 		signal(SIGINT, Server::handleSignal); //-> catch the signal (ctrl + c)
 		signal(SIGQUIT, Server::handleSignal); //-> catch the signal (ctrl + \)
-		ser.initServ(); //-> initialize the server
+		serv.initServ(port, password); //-> initialize the server
 	}
 	catch(const std::exception& error)
 	{
-		ser.closeAllFds(); //-> close the file descriptors
+		serv.closeAllFds(); //-> close the file descriptors
 		std::cerr << error.what() << std::endl;
 	}
 	std::cout << "The Server is Closed!" << std::endl;
