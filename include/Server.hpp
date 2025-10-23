@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
+/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/22 19:27:46 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/10/23 21:03:57 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,9 +19,9 @@
 class Server
 {
     public :
-        Server();
-        void initServ(const size_t &port, const std::string &password);
-        void createSocket(); // run()
+        Server(const size_t &port, const std::string &password);
+        void run();
+        void createSocket();
 
         //sert uniquement à accepter une nouvelle connexion entrante sur le socket d’écoute
         void acceptNewClient();// on ecoute si un client est en demande de connnection et on accepte
@@ -34,8 +34,8 @@ class Server
 
     private :
         int _port;
-        int _serverSocketFd;
         std::string _password;
+        int _serverSocketFd;
         std::vector<Client> _clients;
         std::vector<struct pollfd> _fds;
         static bool _signal; // un membre static aapartient a la classe pas a chaque objet 

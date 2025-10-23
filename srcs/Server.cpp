@@ -3,16 +3,16 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
+/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/22 19:28:37 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/10/23 23:04:16 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Irc.hpp"
 
-Server::Server() :  _port(0), _serverSocketFd(-1)
+Server::Server(const size_t &port, const std::string &password) :  _port(port), _password(password), _serverSocketFd(-1)
 {
     std::cout << "Server constructor is created" << std::endl;
 }
@@ -26,9 +26,50 @@ void Server::handleSignal(int signal)
     Server::_signal = true;
 }
 
+void Server::clearClient(int fd)
+{
+    for(size_t i = 0; i < _fds.size(); i++)
+    {
+        if (_fds[i].fd == fd)
+        {
+            _fds.erase(_fds.begin() + i);
+            break ;
+        }
+    }
+    for(size_t i = 0; i < _clients.size(); i++)
+    {
+        if (_clients[i].getFd() == fd)
+        {
+            close(_clients[i].getFd());
+            _clients.erase(_clients.begin() + i);
+            break ;
+        }
+    }
+}
+
+
+void Server::closeAllFds()
+{
+    //femer tous les socketsfds des clients
+    for(size_t i = 0; i < _clients.size(); i++)
+    {
+        std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
+        close(_clients[i].getFd());
+    }
+    // fermer le fd du serveur
+    if (_serverSocketFd != -1)
+    {
+		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
+		close(_serverSocketFd);
+        //_serverSocketFd = -1; // opti conseillé
+    }
+    // Vider complètement les vecteurs pour libérer la mémoire
+    _clients.clear();
+    _fds.clear();
+}
+
 void Server::createSocket()
 {
-
     int opt = 1;
     struct pollfd NewPoll;
     struct sockaddr_in serverAddress;// structure d'adresse
@@ -69,11 +110,9 @@ void Server::createSocket()
 
 }
 
-void Server::initServ(const size_t &port, const std::string &password)
-{
-    this->_port = port; // porte d'entree pour les clients
-    this->_password = password; // MDP du serveur
 
+void Server::run()
+{
     createSocket();
     std::cout << "Server socket <" << _serverSocketFd << "> connected." << std::endl;
     std::cout << "Server port : " << this->_port << std::endl; 
@@ -81,25 +120,25 @@ void Server::initServ(const size_t &port, const std::string &password)
 
     while (Server::_signal == false) // _signal est static 
     {
-        if ((poll(&_fds[0], _fds.size(), -1) == -1) && Server::_signal == false)
+        if ((poll(&_fds[0], _fds.size(), -1) == -1) && Server::_signal == false) // ici l'erreur ne peut venir que de poll()
             throw(std::runtime_error("poll() failed"));
 
         for(size_t i = 0; i < _fds.size(); i++)
         {
-            if (_fds[i].revents & POLLIN)
+            if (_fds[i].revents & POLLIN) // il y a des donnees a lire dans un fd 
             {
-                if (_fds[i].fd == _serverSocketFd)
+                if (_fds[i].fd == _serverSocketFd) // si c 'est le fd du serveur = un client veut se connecter
                     acceptNewClient();
                 else
-                    handleClientData(_fds[i].fd);
+                    handleClientData(_fds[i].fd); // sinon c'est un fd d'un client existant donc a traiter
             }
-            // if (_fds[i].revents & POLLHUP || _fds[i].revents & POLLERR)
-            // {
-            //     std::cout << "Client <" << _fds[i].fd << "> Disconnected or Error" << std::endl;
-            //     close(_fds[i].fd);
-            //     ClearClients(_fds[i].fd); // retire le client et le pollfd
-            //     i--; // ajuster l’indice après suppression
-            // }
+            if (_fds[i].revents & POLLHUP || _fds[i].revents & POLLERR) // revents & POLLHUP → le client a fermé la connexion / POLLERR= erreur sur le socket
+            {
+                std::cout << "Client <" << _fds[i].fd << "> Disconnected or Error" << std::endl;
+                close(_fds[i].fd);
+                clearClient(_fds[i].fd); // retire le client et le pollfd
+                i--; // ajuster l’indice après suppression
+            }
         }
     }
     closeAllFds();
@@ -126,10 +165,13 @@ void Server::acceptNewClient()
         std::cout << "fcntl() failed" << std::endl;
         return;
     }
-    newClientPoll.fd = clientFd; // ajout du client dans le tableau de fd poll
+    // on initilaise la struct fd (fd, events et revents)
+    newClientPoll.fd = clientFd; 
     newClientPoll.events = POLLIN; //on active le flag pollin pr surveiller si le client a envoyer des donnees a lire
-    newClientPoll.revents = 0;
+    newClientPoll.revents = 0; // on initialise a 0 
+    _fds.push_back(newClientPoll); // on ajoute dans le vector de pollfd
 
+    
     cli.setFd(clientFd);//on donne a _fd le fd que accept() vient de renvoyer pour ce client.
     cli.setIp(inet_ntoa((newClientAddress.sin_addr)));//convertit l’adress IP du client en string et la stocke dans l'objet Client.
 	_clients.push_back(cli);// ajout du client a la fin du vecteur de _clients 
@@ -138,26 +180,6 @@ void Server::acceptNewClient()
 }
 
 
-void Server::clearClient(int fd)
-{
-    for(size_t i = 0; i < _fds.size(); i++)
-    {
-        if (_fds[i].fd == fd)
-        {
-            _fds.erase(_fds.begin() + i);
-            break ;
-        }
-    }
-    for(size_t i = 0; i < _clients.size(); i++)
-    {
-        if (_clients[i].getFd() == fd)
-        {
-            //close(_clients[i].getFd());
-            _clients.erase(_clients.begin() + i);
-            break ;
-        }
-    }
-}
 
 void Server::handleClientData(int fd)
 {
@@ -207,24 +229,6 @@ void Server::handleClientData(int fd)
     }
 }
 
-void Server::closeAllFds()
-{
-    //femer tous les socketsfds des clients
-    for(size_t i = 0; i < _clients.size(); i++)
-    {
-        std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
-        close(_clients[i].getFd());
-    }
-    // fermer le fd du serveur
-    if (_serverSocketFd != -1)
-    {
-		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
-		close(_serverSocketFd);
-        //_serverSocketFd = -1;
-    }
-    // Vider complètement les vecteurs pour libérer la mémoire
-    // _clients.clear();
-    // _fds.clear();
-}
+
 
 
