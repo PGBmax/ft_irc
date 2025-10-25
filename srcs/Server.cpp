@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/25 16:45:15 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/25 18:25:30 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -228,66 +228,93 @@ void Server::readFromClient(size_t id)
 	}
 }
 
+void Server::ping(t_message &message, Client &client, size_t id)
+{
+	std::string param = message.params.empty() ? "" : message.params[0];
+	client._out += "PONG: " + param + "\r\n";
+	_pfds[id].events |= POLLOUT;
+}
+
+void Server::pass(t_message &message, Client &client)
+{
+	if (message.params.empty())
+		return sendClient(461, client, "Not enough parameters");
+	if (client._registered)
+		return sendClient(462, client, "You may not reregister");
+
+	client._isPasswordValid = (message.params[0] == _password);
+	if (!client._isPasswordValid)
+		return sendClient(464, client, "Password incorrect");
+}
+
+bool Server::nick(t_message &message, Client &client)
+{
+	if (message.params.empty())
+	{
+		sendClient(431, client, "No nickname given");
+		return false;
+	}
+	
+	std::string newNick = message.params[0];
+	if (!isNickValid(newNick))
+	{
+		sendClient(432, client, "Invalid nickname");
+		return false;
+	}
+	std::map<int, Client>::iterator it = _clients.begin();
+	for (; it != _clients.end(); ++it)
+	{
+		if (it->second._fd != client._fd && it->second._nick == newNick)
+		{
+			sendClient(433, client, "Nickname is already taken");
+			return false;
+		}
+	}
+	client._nick = newNick;
+	return true;
+}
+
+bool Server::user(t_message &message, Client &client)
+{
+	if (message.params.size() < 4)
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+	client._user = message.params[0];
+	client._name = message.params[3];
+	return true;
+}
+
+void Server::userRegister(t_message &message, Client &client)
+{
+	if (client._isPasswordValid && !client._nick.empty() && !client._user.empty())
+	{
+		client._registered = true;
+		std::cout << "Client " << client._fd << " registered with name " << client._name << std::endl;
+		return sendClient(001, client, "Welcome to ft_irc");
+	}
+}
+
 void Server::handleLine(size_t id, const std::string &line)
 {
 	Client &client = getClient(id);
 	t_message message = parseLine(line);
 
 	if (message.command == "PING")
-	{
-		std::string param = message.params.empty() ? "" : message.params[0];
-		client._out += "PONG: " + param + "\r\n";
-		_pfds[id].events |= POLLOUT;
-		return;
-	}
+		return ping(message, client, id);
 
 	if (message.command == "PASS")
-	{
-		if (message.params.empty())
-			return sendClient(461, client, "Not enough parameters");
-		if (client._registered)
-			return sendClient(462, client, "You may not reregister");
+		return pass(message, client);
 
-		client._isPasswordValid = (message.params[0] == _password);
-		if (!client._isPasswordValid)
-			return sendClient(464, client, "Password incorrect");
+	if (message.command == "NICK" && !nick(message, client))
 		return;
-	}
 
-	if (message.command == "NICK")
-	{
-		if (message.params.empty())
-			return sendClient(431, client, "No nickname given");
-		
-		std::string newNick = message.params[0];
-		if (!isNickValid(newNick))
-			return sendClient(432, client, "Invalid nickname");
-		std::map<int, Client>::iterator it = _clients.begin();
-		for (; it != _clients.end(); ++it)
-		{
-			if (it->second._fd != client._fd && it->second._nick == newNick)
-				return sendClient(433, client, "Nickname is already taken");
-		}
-		client._nick = newNick;
-	}
-
-	if (message.command == "USER")
-	{
-		if (message.params.size() < 4)
-			return sendClient(461, client, "Not enough parameters");
-		client._user = message.params[0];
-		client._name = message.params[3];
-	}
+	if (message.command == "USER" && !user(message, client))
+		return;
 	
 	if (!client._registered)
-	{
-		if (client._isPasswordValid && !client._nick.empty() && !client._user.empty())
-		{
-			client._registered = true;
-			std::cout << "Client " << client._fd << " registered with name " << client._name << std::endl;
-			return sendClient(001, client, "Welcome to ft_irc");
-		}
-	}
+		return userRegister(message, client);
 }
 
 void Server::closeClient(size_t id)
@@ -311,127 +338,3 @@ Client &Server::getClient(size_t id)
 		throw std::runtime_error("client not found");
 	return (it->second);
 }
-
-
-// void Server::acceptNewClient()
-// {
-//     Client cli;
-//     struct sockaddr_in newClientAddress;
-//     struct pollfd newClientPoll;
-//     socklen_t len = sizeof(newClientAddress);//taille de la structure d’adresse client
-
-//     //on accepte une nouvelle connexion sur le socket serveur
-//     //et le descripteur du client connecté est retourné
-//     int clientFd = accept(_serverSocketFd, (sockaddr *)&(newClientAddress), &len);
-//     if (clientFd == -1)
-//     {
-//         std::cout << "accept() failed" << std::endl;
-//         return ;
-//     }
-//     if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) //on change le flag du fd en non bloquant
-//     {
-//         std::cout << "fcntl() failed" << std::endl;
-//         return;
-//     }
-//     newClientPoll.fd = clientFd; // ajout du client dans le tableau de fd poll
-//     newClientPoll.events = POLLIN; //on active le flag pollin pr surveiller si le client a envoyer des donnees a lire
-//     newClientPoll.revents = 0;
-
-//     cli.setFd(clientFd);//on donne a _fd le fd que accept() vient de renvoyer pour ce client.
-//     cli.setIp(inet_ntoa((newClientAddress.sin_addr)));//convertit l’adress IP du client en string et la stocke dans l'objet Client.
-// 	_clients.push_back(cli);// ajout du client a la fin du vecteur de _clients 
-
-//     std::cout << "Client <" << clientFd << "> Connected" << std::endl;
-// }
-
-
-// void Server::clearClient(int fd)
-// {
-//     for(size_t i = 0; i < _fds.size(); i++)
-//     {
-//         if (_fds[i].fd == fd)
-//         {
-//             _fds.erase(_fds.begin() + i);
-//             break ;
-//         }
-//     }
-//     for(size_t i = 0; i < _clients.size(); i++)
-//     {
-//         if (_clients[i].getFd() == fd)
-//         {
-//             //close(_clients[i].getFd());
-//             _clients.erase(_clients.begin() + i);
-//             break ;
-//         }
-//     }
-// }
-
-// void Server::handleClientData(int fd)
-// {
-//     char buff[1024];
-//     memset(buff, 0, sizeof(buff));
-
-//     ssize_t bytes = recv(fd, buff, sizeof(buff) - 1, 0);
-//     if (bytes <= 0)
-//     {
-//         std::cout << "Client <" << fd << "> disconnected" << std::endl;
-// 		clearClient(fd);
-// 		close(fd);
-//     }
-//     else 
-//     {    
-//         buff[bytes] = '\0';
-
-//         //on affiche le message reçu
-//         std::cout << "Client <" << fd << "> Data: " << buff << "\n";
-
-//         //convertir le buffer en string pour manipuler facilement
-//         // std::string message(buff);
-
-//         // //parser le messag en découpant sur chaque CRLF (\r\n)
-//         // size_t pos = 0;
-//         // while ((pos = message.find("\r\n")) != std::string::npos)
-//         // {
-//         //     std::string command = message.substr(0, pos); // extraire la cmd
-//         //     message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
-
-//             // exécute les cmd IRC
-//         //     if (command.starts_with("JOIN "))
-//         //         handleJoin(command, fd);
-//         //     else if (command.starts_with("NICK "))
-//         //         handleNick(command, fd);
-//         //     else if (command.starts_with("PRIVMSG "))
-//         //         handlePrivMsg(command, fd);
-//         //     else
-//         //         std::cout << "Command not found : " << command << "\n";
-//         // }
-//         // //S il reste un fragment sans CRLF, on peut le stocker pour le concaténer avec le prochain recv
-//         // if (!message.empty())
-//         // {
-//         //     //stocker dans un buffer temporaire associé au client
-//         //     //pour le traiter lors du prochain recv
-//         //}
-//     }
-// }
-
-// void Server::closeAllFds()
-// {
-//     //femer tous les socketsfds des clients
-//     for(size_t i = 0; i < _clients.size(); i++)
-//     {
-//         std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
-//         close(_clients[i].getFd());
-//     }
-//     // fermer le fd du serveur
-//     if (_serverSocketFd != -1)
-//     {
-// 		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
-// 		close(_serverSocketFd);
-//         //_serverSocketFd = -1;
-//     }
-//     // Vider complètement les vecteurs pour libérer la mémoire
-//     // _clients.clear();
-//     // _fds.clear();
-// }
-
-
