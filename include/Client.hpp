@@ -3,30 +3,28 @@
 /*                                                        :::      ::::::::   */
 /*   Client.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
+/*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/22 18:20:57 by pboucher          #+#    #+#             */
-/*   Updated: 2025/10/22 19:18:56 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/10/25 16:44:31 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #pragma once
 
-#include <iostream>
+#include <string>
 
 class Client
 {
-    public :
-        Client();
+	public :
+		int			_fd;
+		std::string _in;
+		std::string _out;
+		bool		_isPasswordValid;
+		bool		_registered;
+		std::string	_nick;
+		std::string	_user;
+		std::string	_name;
 
-        int getFd() const;
-        void setFd(int fd);
-
-        void setIp(const std::string& ip);
-        std::string getIp() const; // a voir si utile ou pas
-
-    private :
-        int _fd;
-        std::string _ip;
-
+		Client(int fd);
 };

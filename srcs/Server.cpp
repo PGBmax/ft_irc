@@ -3,228 +3,435 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
+/*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/22 19:28:37 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/10/25 16:45:15 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "Irc.hpp"
+#include "Server.hpp"
+#include "Client.hpp"
+#include <iostream>
+#include <cstring>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdexcept>
+#include <cerrno>
+#include <algorithm>
+#include <sstream>
 
-Server::Server() :  _port(0), _serverSocketFd(-1)
+static void set_nonblocking(int fd)
 {
-    std::cout << "Server constructor is created" << std::endl;
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
+		throw std::runtime_error("failed to set O_NONBLOCK flag");
 }
 
-bool Server::_signal = false;
-
-void Server::handleSignal(int signal)
+static t_message parseLine(const std::string &line)
 {
-    (void)signal;
-    std::cout << std::endl << "Signal Received!" << std::endl;
-    Server::_signal = true;
+	t_message message;
+	std::string tmp = line;
+	size_t i = 0;
+
+	if (!tmp.empty() && tmp[0] == ':')
+	{
+		size_t space = tmp.find(' ');
+		if (space != std::string::npos)
+			tmp.erase(0, space + 1);
+		else
+			tmp.clear();
+	}
+
+	while (i < tmp.size() && tmp[i] == ' ')
+		++i;
+	size_t start = i;
+	while (i < tmp.size() && tmp[i] != ' ')
+		++i;
+
+	message.command = tmp.substr(start, i - start);
+	std::transform(message.command.begin(), message.command.end(), message.command.begin(), toupper);
+	
+	while (i < tmp.size())
+	{
+		while (i < tmp.size() && tmp[i] == ' ')
+			++i;
+		if (i >= tmp.size())
+			break;
+		if (tmp[i] == ':')
+		{
+			message.params.push_back(tmp.substr(i + 1));
+			break;
+		}
+		start = i;
+		while (i < tmp.size() && tmp[i] != ' ')
+			++i;
+		message.params.push_back(tmp.substr(start, i - start));
+	}
+	return message;
 }
 
-void Server::createSocket()
+static void sendClient(int code, Client &client, std::string message)
 {
+	std::stringstream ss;
 
-    int opt = 1;
-    struct pollfd NewPoll;
-    struct sockaddr_in serverAddress;// structure d'adresse
-    serverAddress.sin_family  = AF_INET; // Ce socket utilisera le protocole Internet IPv4.
-    serverAddress.sin_addr.s_addr = INADDR_ANY; // “Le serveur acceptera les connexions sur n’importe quelle interface réseau de la machine.”
-    serverAddress.sin_port = htons(this->_port); // le serveur est associé à un port précis pour recevoir les connexions.
-
-
-    // crée un socket serveur TCP en IPv4.
-    this->_serverSocketFd = socket(AF_INET, SOCK_STREAM, 0);
-    if (this->_serverSocketFd == - 1)
-        throw(std::runtime_error("creation socket server failed"));
-
-   
-    // permettre de réutiliser le port rapidement
-    if(setsockopt(_serverSocketFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
-		  throw(std::runtime_error("failed to set option (SO_REUSEADDR) on socket"));
-
-
-    // met les sockets en non bloquant
-    if (fcntl(_serverSocketFd, F_SETFL, O_NONBLOCK) == -1)
-		  throw(std::runtime_error("failed to set option (O_NONBLOCK) on socket"));
-
-
-    // assigner l’adresse IP + port
-    if (bind(_serverSocketFd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1)
-		  throw(std::runtime_error("failed to bind socket"));
-
-    // mettre le socket en mode écoute
-    if (listen(_serverSocketFd, SOMAXCONN) == -1)
-		throw(std::runtime_error("listen() failed"));
-
-    // ajout du socket serveur dans la liste a surveiller par poll()
-    NewPoll.fd = _serverSocketFd; //-> ajout du socket du serveur au pollfd pour que poll() surveille les evnmt de ce socket
-	NewPoll.events = POLLIN; //detecte quand un client tente de se connecter
-	NewPoll.revents = 0; //evnmt reellement survenu 0 au depart
-	_fds.push_back(NewPoll); //on ajoute le socket serveur à la liste des sockets surveillés par poll().
-
+	ss << code << " " << (client._nick.empty() ? "*" : client._nick) << ": " << message << "\r\n";
+	client._out += ss.str();
 }
 
-void Server::initServ(const size_t &port, const std::string &password)
+static bool isNickValid(const std::string &nick)
 {
-    this->_port = port; // porte d'entree pour les clients
-    this->_password = password; // MDP du serveur
+	if (nick.empty())
+		return false;
+	for (size_t i = 0; i < nick.size(); ++i)
+	{
+		unsigned char c = nick[i];
+		if (!(std::isalnum(c) || c == '-' || c == '_'))
+			return false;
+	}
+	return true;
+}
 
-    createSocket();
-    std::cout << "Server socket <" << _serverSocketFd << "> connected." << std::endl;
-    std::cout << "Server port : " << this->_port << std::endl; 
-    std::cout << "Waiting for incoming client connections..." << std::endl;
+Server::Server(int port, const std::string &password) : _port(port), _password(password), _listenFd(-1)
+{
+	setupListenSocket();
+}
 
-    while (Server::_signal == false) // _signal est static 
-    {
-        if ((poll(&_fds[0], _fds.size(), -1) == -1) && Server::_signal == false)
-            throw(std::runtime_error("poll() failed"));
+Server::~Server()
+{
+	if (_listenFd != -1)
+		close(_listenFd);
+	std::cout << "Server destructed" << std::endl;
+}
 
-        for(size_t i = 0; i < _fds.size(); i++)
-        {
-            if (_fds[i].revents & POLLIN)
-            {
-                if (_fds[i].fd == _serverSocketFd)
-                    acceptNewClient();
-                else
-                    handleClientData(_fds[i].fd);
-            }
-            // if (_fds[i].revents & POLLHUP || _fds[i].revents & POLLERR)
-            // {
-            //     std::cout << "Client <" << _fds[i].fd << "> Disconnected or Error" << std::endl;
-            //     close(_fds[i].fd);
-            //     ClearClients(_fds[i].fd); // retire le client et le pollfd
-            //     i--; // ajuster l’indice après suppression
-            // }
-        }
-    }
-    closeAllFds();
+void Server::setupListenSocket()
+{
+	_listenFd = socket(AF_INET, SOCK_STREAM, 0);
+	if (_listenFd == -1)
+		throw std::runtime_error("listen socket creation failed");
+
+	int turnOn = 1;
+	if (setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &turnOn, sizeof(turnOn)) == -1)
+		throw std::runtime_error("set option on listen socket SO_REUSEADDR failed");
+
+	sockaddr_in addr;
+	std::memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(_port);
+
+	if (bind(_listenFd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+		throw std::runtime_error("bind listen socket to IPV4 address failed");
+
+	if (listen(_listenFd, SOMAXCONN) == -1)
+		throw std::runtime_error("listen failed");
+
+	set_nonblocking(_listenFd);
+
+	pollfd p;
+	p.fd = _listenFd;
+	p.events = POLLIN;
+	p.revents = 0;
+	_pfds.push_back(p);
+
+	std::cout << "Socket listening on port " << _port << std::endl;
+}
+
+void Server::run()
+{
+	while (true)
+	{
+		int n = poll(&_pfds[0], _pfds.size(), -1);
+		if (n < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			throw std::runtime_error("poll failed");
+		}
+
+		if (_pfds[0].revents & POLLIN)
+			acceptNewClient();
+
+		for (size_t i = 1; i < _pfds.size(); ++i)
+		{
+			if (_pfds[i].revents & POLLIN)
+				readFromClient(i);
+			if (_pfds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
+			{
+				closeClient(i);
+				--i;
+				continue;
+			}
+			if ((_pfds[i].revents & POLLOUT))
+			{
+				Client &client = getClient(i);
+				if (!client._out.empty())
+				{
+					ssize_t sent = send(_pfds[i].fd, client._out.data(), client._out.size(), 0);
+					if (sent > 0)
+						client._out.erase(0, sent);
+				}
+				if (client._out.empty())
+					_pfds[i].events &= ~POLLOUT;
+			}
+		}
+	}
+}
+
+void Server:: acceptNewClient()
+{
+	sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+
+	int fd = accept(_listenFd, (struct sockaddr*) &addr, &len);
+	if (fd == -1)
+		return;
+	set_nonblocking(fd);
+
+	pollfd p;
+	p.fd = fd;
+	p.events = POLLIN;
+	p.revents = 0;
+	_pfds.push_back(p);
+
+	_clients.insert(std::map<int, Client>::value_type(fd, Client(fd)));
+
+	char ip[64];
+	const char *res = inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip));
+	std::cout << "Client " << fd << " connected from " << (res ? ip : "?") << ":" << ntohs(addr.sin_port) << std::endl;
+}
+
+void Server::readFromClient(size_t id)
+{
+	Client &client = getClient(id);
+	char buffer[4096];
+
+	ssize_t n = recv(client._fd, buffer, sizeof(buffer), 0);
+	if (n <= 0)
+	{
+		if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
+			return closeClient(id);
+		return;
+	}
+	
+	client._in.append(buffer, n);
+	
+	size_t i;
+	while ((i = client._in.find("\r\n")) != std::string::npos)
+	{
+		std::string line = client._in.substr(0, i);
+		client._in.erase(0, i + 2);
+		handleLine(id, line);
+		_pfds[id].events |= POLLOUT;
+	}
+}
+
+void Server::handleLine(size_t id, const std::string &line)
+{
+	Client &client = getClient(id);
+	t_message message = parseLine(line);
+
+	if (message.command == "PING")
+	{
+		std::string param = message.params.empty() ? "" : message.params[0];
+		client._out += "PONG: " + param + "\r\n";
+		_pfds[id].events |= POLLOUT;
+		return;
+	}
+
+	if (message.command == "PASS")
+	{
+		if (message.params.empty())
+			return sendClient(461, client, "Not enough parameters");
+		if (client._registered)
+			return sendClient(462, client, "You may not reregister");
+
+		client._isPasswordValid = (message.params[0] == _password);
+		if (!client._isPasswordValid)
+			return sendClient(464, client, "Password incorrect");
+		return;
+	}
+
+	if (message.command == "NICK")
+	{
+		if (message.params.empty())
+			return sendClient(431, client, "No nickname given");
+		
+		std::string newNick = message.params[0];
+		if (!isNickValid(newNick))
+			return sendClient(432, client, "Invalid nickname");
+		std::map<int, Client>::iterator it = _clients.begin();
+		for (; it != _clients.end(); ++it)
+		{
+			if (it->second._fd != client._fd && it->second._nick == newNick)
+				return sendClient(433, client, "Nickname is already taken");
+		}
+		client._nick = newNick;
+	}
+
+	if (message.command == "USER")
+	{
+		if (message.params.size() < 4)
+			return sendClient(461, client, "Not enough parameters");
+		client._user = message.params[0];
+		client._name = message.params[3];
+	}
+	
+	if (!client._registered)
+	{
+		if (client._isPasswordValid && !client._nick.empty() && !client._user.empty())
+		{
+			client._registered = true;
+			std::cout << "Client " << client._fd << " registered with name " << client._name << std::endl;
+			return sendClient(001, client, "Welcome to ft_irc");
+		}
+	}
+}
+
+void Server::closeClient(size_t id)
+{
+	int fd = _pfds[id].fd;
+	std::cout << "Client " << fd << " quit" << std::endl;
+
+	close(fd);
+	_clients.erase(fd);
+	_pfds.erase(_pfds.begin() + id);
+}
+
+Client &Server::getClient(size_t id)
+{
+	if (id == 0 || id >= _pfds.size())
+		throw std::out_of_range("bad id");
+
+	int fd = _pfds[id].fd;
+	std::map<int, Client>::iterator it = _clients.find(fd);
+	if (it == _clients.end())
+		throw std::runtime_error("client not found");
+	return (it->second);
 }
 
 
-void Server::acceptNewClient()
-{
-    Client cli;
-    struct sockaddr_in newClientAddress;
-    struct pollfd newClientPoll;
-    socklen_t len = sizeof(newClientAddress);//taille de la structure d’adresse client
+// void Server::acceptNewClient()
+// {
+//     Client cli;
+//     struct sockaddr_in newClientAddress;
+//     struct pollfd newClientPoll;
+//     socklen_t len = sizeof(newClientAddress);//taille de la structure d’adresse client
 
-    //on accepte une nouvelle connexion sur le socket serveur
-    //et le descripteur du client connecté est retourné
-    int clientFd = accept(_serverSocketFd, (sockaddr *)&(newClientAddress), &len);
-    if (clientFd == -1)
-    {
-        std::cout << "accept() failed" << std::endl;
-        return ;
-    }
-    if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) //on change le flag du fd en non bloquant
-    {
-        std::cout << "fcntl() failed" << std::endl;
-        return;
-    }
-    newClientPoll.fd = clientFd; // ajout du client dans le tableau de fd poll
-    newClientPoll.events = POLLIN; //on active le flag pollin pr surveiller si le client a envoyer des donnees a lire
-    newClientPoll.revents = 0;
+//     //on accepte une nouvelle connexion sur le socket serveur
+//     //et le descripteur du client connecté est retourné
+//     int clientFd = accept(_serverSocketFd, (sockaddr *)&(newClientAddress), &len);
+//     if (clientFd == -1)
+//     {
+//         std::cout << "accept() failed" << std::endl;
+//         return ;
+//     }
+//     if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) //on change le flag du fd en non bloquant
+//     {
+//         std::cout << "fcntl() failed" << std::endl;
+//         return;
+//     }
+//     newClientPoll.fd = clientFd; // ajout du client dans le tableau de fd poll
+//     newClientPoll.events = POLLIN; //on active le flag pollin pr surveiller si le client a envoyer des donnees a lire
+//     newClientPoll.revents = 0;
 
-    cli.setFd(clientFd);//on donne a _fd le fd que accept() vient de renvoyer pour ce client.
-    cli.setIp(inet_ntoa((newClientAddress.sin_addr)));//convertit l’adress IP du client en string et la stocke dans l'objet Client.
-	_clients.push_back(cli);// ajout du client a la fin du vecteur de _clients 
+//     cli.setFd(clientFd);//on donne a _fd le fd que accept() vient de renvoyer pour ce client.
+//     cli.setIp(inet_ntoa((newClientAddress.sin_addr)));//convertit l’adress IP du client en string et la stocke dans l'objet Client.
+// 	_clients.push_back(cli);// ajout du client a la fin du vecteur de _clients 
 
-    std::cout << "Client <" << clientFd << "> Connected" << std::endl;
-}
+//     std::cout << "Client <" << clientFd << "> Connected" << std::endl;
+// }
 
 
-void Server::clearClient(int fd)
-{
-    for(size_t i = 0; i < _fds.size(); i++)
-    {
-        if (_fds[i].fd == fd)
-        {
-            _fds.erase(_fds.begin() + i);
-            break ;
-        }
-    }
-    for(size_t i = 0; i < _clients.size(); i++)
-    {
-        if (_clients[i].getFd() == fd)
-        {
-            //close(_clients[i].getFd());
-            _clients.erase(_clients.begin() + i);
-            break ;
-        }
-    }
-}
+// void Server::clearClient(int fd)
+// {
+//     for(size_t i = 0; i < _fds.size(); i++)
+//     {
+//         if (_fds[i].fd == fd)
+//         {
+//             _fds.erase(_fds.begin() + i);
+//             break ;
+//         }
+//     }
+//     for(size_t i = 0; i < _clients.size(); i++)
+//     {
+//         if (_clients[i].getFd() == fd)
+//         {
+//             //close(_clients[i].getFd());
+//             _clients.erase(_clients.begin() + i);
+//             break ;
+//         }
+//     }
+// }
 
-void Server::handleClientData(int fd)
-{
-    char buff[1024];
-    memset(buff, 0, sizeof(buff));
+// void Server::handleClientData(int fd)
+// {
+//     char buff[1024];
+//     memset(buff, 0, sizeof(buff));
 
-    ssize_t bytes = recv(fd, buff, sizeof(buff) - 1, 0);
-    if (bytes <= 0)
-    {
-        std::cout << "Client <" << fd << "> disconnected" << std::endl;
-		clearClient(fd);
-		close(fd);
-    }
-    else 
-    {    
-        buff[bytes] = '\0';
+//     ssize_t bytes = recv(fd, buff, sizeof(buff) - 1, 0);
+//     if (bytes <= 0)
+//     {
+//         std::cout << "Client <" << fd << "> disconnected" << std::endl;
+// 		clearClient(fd);
+// 		close(fd);
+//     }
+//     else 
+//     {    
+//         buff[bytes] = '\0';
 
-        //on affiche le message reçu
-        std::cout << "Client <" << fd << "> Data: " << buff << "\n";
+//         //on affiche le message reçu
+//         std::cout << "Client <" << fd << "> Data: " << buff << "\n";
 
-        //convertir le buffer en string pour manipuler facilement
-        // std::string message(buff);
+//         //convertir le buffer en string pour manipuler facilement
+//         // std::string message(buff);
 
-        // //parser le messag en découpant sur chaque CRLF (\r\n)
-        // size_t pos = 0;
-        // while ((pos = message.find("\r\n")) != std::string::npos)
-        // {
-        //     std::string command = message.substr(0, pos); // extraire la cmd
-        //     message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
+//         // //parser le messag en découpant sur chaque CRLF (\r\n)
+//         // size_t pos = 0;
+//         // while ((pos = message.find("\r\n")) != std::string::npos)
+//         // {
+//         //     std::string command = message.substr(0, pos); // extraire la cmd
+//         //     message.erase(0, pos + 2); // supprimer la cmd traitée + CRLF
 
-            // exécute les cmd IRC
-        //     if (command.starts_with("JOIN "))
-        //         handleJoin(command, fd);
-        //     else if (command.starts_with("NICK "))
-        //         handleNick(command, fd);
-        //     else if (command.starts_with("PRIVMSG "))
-        //         handlePrivMsg(command, fd);
-        //     else
-        //         std::cout << "Command not found : " << command << "\n";
-        // }
-        // //S il reste un fragment sans CRLF, on peut le stocker pour le concaténer avec le prochain recv
-        // if (!message.empty())
-        // {
-        //     //stocker dans un buffer temporaire associé au client
-        //     //pour le traiter lors du prochain recv
-        //}
-    }
-}
+//             // exécute les cmd IRC
+//         //     if (command.starts_with("JOIN "))
+//         //         handleJoin(command, fd);
+//         //     else if (command.starts_with("NICK "))
+//         //         handleNick(command, fd);
+//         //     else if (command.starts_with("PRIVMSG "))
+//         //         handlePrivMsg(command, fd);
+//         //     else
+//         //         std::cout << "Command not found : " << command << "\n";
+//         // }
+//         // //S il reste un fragment sans CRLF, on peut le stocker pour le concaténer avec le prochain recv
+//         // if (!message.empty())
+//         // {
+//         //     //stocker dans un buffer temporaire associé au client
+//         //     //pour le traiter lors du prochain recv
+//         //}
+//     }
+// }
 
-void Server::closeAllFds()
-{
-    //femer tous les socketsfds des clients
-    for(size_t i = 0; i < _clients.size(); i++)
-    {
-        std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
-        close(_clients[i].getFd());
-    }
-    // fermer le fd du serveur
-    if (_serverSocketFd != -1)
-    {
-		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
-		close(_serverSocketFd);
-        //_serverSocketFd = -1;
-    }
-    // Vider complètement les vecteurs pour libérer la mémoire
-    // _clients.clear();
-    // _fds.clear();
-}
+// void Server::closeAllFds()
+// {
+//     //femer tous les socketsfds des clients
+//     for(size_t i = 0; i < _clients.size(); i++)
+//     {
+//         std::cout << "Client <" << _clients[i].getFd() << "> Disconnected" << std::endl;
+//         close(_clients[i].getFd());
+//     }
+//     // fermer le fd du serveur
+//     if (_serverSocketFd != -1)
+//     {
+// 		std::cout << "Server <" << _serverSocketFd << "> Disconnected" << std::endl;
+// 		close(_serverSocketFd);
+//         //_serverSocketFd = -1;
+//     }
+//     // Vider complètement les vecteurs pour libérer la mémoire
+//     // _clients.clear();
+//     // _fds.clear();
+// }
 
 
