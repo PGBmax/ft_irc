@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/27 11:12:51 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 19:37:20 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -47,7 +47,8 @@ class Server
 		void closeClient(int fd);
 		size_t getPID(int fd) const;
 		Client &getClient(int fd);
-		Channel &getChannel(std::string name);
+		Client &getClientByNick(std::string &nick);
+		Channel &getChannel(std::string &name);
 		void handleLine(int fd, const std::string &line);
 		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
 
@@ -58,4 +59,5 @@ class Server
 		void userRegister(Client &client);
 		bool join(t_message &message, Client &client);
 		bool part(t_message &message, Client &client);
+		bool privmsg(t_message &message, Client &client);
 };

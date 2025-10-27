@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/27 17:39:39 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 19:51:46 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -404,11 +404,7 @@ bool Server::part(t_message &message, Client &client)
 		return false;
 	}
 
-	std::string reason;
-	for (size_t i = 1; i < message.params.size(); ++i)
-		reason += message.params[i] + " ";
-	if (reason.empty())
-		reason = "Leaving";
+	std::string reason = message.params.size() > 1 ? message.params[1] : "Leaving";
 	std::string line = client._nick + " PART " + name + " :" + reason;
 	sendInChannel(channel, -1, line);
 
@@ -417,6 +413,50 @@ bool Server::part(t_message &message, Client &client)
 
 	if (channel._members.empty())
 		_channels.erase(it);
+	return true;
+}
+
+bool Server::privmsg(t_message &message, Client &client)
+{
+    if (message.params.size() < 2)
+	{
+        sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+    std::string target = message.params[0];
+    std::string text = message.params[1];
+    std::string line = client._nick + " PRIVMSG " + target + " :" + text;
+
+    if (target[0] == '#') {
+        if (_channels.find(target) == _channels.end())
+		{
+            sendClient(403, client, "No such channel");
+			return false;
+		}
+
+        Channel &channel = getChannel(target);
+        if (!channel.isMember(client._fd))
+		{
+            sendClient(404, client, "Cannot send to channel");
+			return false;
+		}
+
+        sendInChannel(channel, client._fd, line);
+    } 
+	else
+	{
+		try
+		{
+			Client &dest = getClientByNick(target);
+			sendMessage(dest, line, _pfds[getPID(dest._fd)]);
+		}
+		catch(...)
+		{
+			sendClient(401, client, "No such nick");
+			return false;
+		}
+    }
 	return true;
 }
 
@@ -444,6 +484,9 @@ void Server::handleLine(int fd, const std::string &line)
 		return;
 
 	if (message.command == "PART" && !part(message, client))
+		return;
+	
+	if (message.command == "PRIVMSG" && !privmsg(message, client))
 		return;
 }
 
@@ -475,7 +518,18 @@ Client &Server::getClient(int fd)
 	return (it->second);
 }
 
-Channel &Server::getChannel(std::string name)
+Client &Server::getClientByNick(std::string &nick)
+{
+	std::map<int, Client>::iterator it = _clients.begin();
+	for (; it != _clients.end(); ++it)
+	{
+		if (it->second._nick == nick)
+			return it->second;
+	}
+	throw std::runtime_error("client not found");
+}
+
+Channel &Server::getChannel(std::string &name)
 {
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
