@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/27 10:39:50 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 11:12:51 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -57,4 +57,5 @@ class Server
 		bool user(t_message &message, Client &client);
 		void userRegister(Client &client);
 		bool join(t_message &message, Client &client);
+		bool part(t_message &message, Client &client);
 };

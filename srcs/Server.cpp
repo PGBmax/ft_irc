@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/27 11:08:32 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 17:39:39 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -381,27 +381,43 @@ bool Server::join(t_message &message, Client &client)
 	return true;
 }
 
-if (message.command == "PART") {
-    if (message.params.empty())
-        return sendClient(461, client, "Not enough parameters");
-    std::string chanName = message.params[0];
-    std::map<std::string, Channel>::iterator it = _channels.find(chanName);
-    if (it == _channels.end())
-        return sendClient(403, client, "No such channel");
+bool Server::part(t_message &message, Client &client)
+{
+	if (message.params.empty())
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
 
-    Channel &chan = it->second;
-    if (!chan.hasMember(client._fd))
-        return sendClient(442, client, "You're not on that channel");
+	std::string name = message.params[0];
+	std::map<std::string, Channel>::iterator it = _channels.find(name);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
 
-    std::string reason = (message.params.size() > 1) ? message.params[1] : "Leaving";
-    std::string msg = ":" + client._nick + " PART " + chanName + " :" + reason;
-    broadcastChannel(chanName, -1, msg);
+	Channel &channel = it->second;
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
 
-    chan._members.erase(client._fd);
-    chan._operators.erase(client._fd);
+	std::string reason;
+	for (size_t i = 1; i < message.params.size(); ++i)
+		reason += message.params[i] + " ";
+	if (reason.empty())
+		reason = "Leaving";
+	std::string line = client._nick + " PART " + name + " :" + reason;
+	sendInChannel(channel, -1, line);
 
-    if (chan._members.empty())
-        _channels.erase(it);
+	channel._members.erase(client._fd);
+	channel._operators.erase(client._fd);
+
+	if (channel._members.empty())
+		_channels.erase(it);
+	return true;
 }
 
 void Server::handleLine(int fd, const std::string &line)
@@ -425,6 +441,9 @@ void Server::handleLine(int fd, const std::string &line)
 		return userRegister(client);
 
 	if (message.command == "JOIN" && !join(message, client))
+		return;
+
+	if (message.command == "PART" && !part(message, client))
 		return;
 }
 
