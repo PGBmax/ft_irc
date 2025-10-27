@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/25 18:24:43 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 10:39:50 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,35 +21,40 @@
 
 typedef struct s_message
 {
-    std::string command; 
-    std::vector<std::string> params;
+	std::string command; 
+	std::vector<std::string> params;
 } t_message;
 
 class Server
 {
-    public :
-        Server(int port, const std::string &password);
-        ~Server();
+	public :
+		Server(int port, const std::string &password);
+		~Server();
 
-        void run();
+		void run();
 
-    private :
-        int                             _port;
-        std::string                     _password;
-        int                             _listenFd;
-        std::vector<pollfd>             _pfds;
-        std::map<int, Client>           _clients;
+	private :
+		int								_port;
+		std::string						_password;
+		int								_listenFd;
+		std::vector<pollfd>				_pfds;
+		std::map<int, Client>			_clients;
+		std::map<std::string, Channel> 	_channels;
 
-        void setupListenSocket();
-        void acceptNewClient();
-        void readFromClient(size_t id);
-        void closeClient(size_t id);
-        Client &getClient(size_t id);
-        void handleLine(size_t id, const std::string &line);
+		void setupListenSocket();
+		void acceptNewClient();
+		void readFromClient(int fd);
+		void closeClient(int fd);
+		size_t getPID(int fd) const;
+		Client &getClient(int fd);
+		Channel &getChannel(std::string name);
+		void handleLine(int fd, const std::string &line);
+		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
 
-        void ping(t_message &message, Client &client, size_t id);
-        void pass(t_message &message, Client &client);
-        bool nick(t_message &message, Client &client);
-        bool user(t_message &message, Client &client);
-        void userRegister(t_message &message, Client &client);
+		void ping(t_message &message, Client &client);
+		void pass(t_message &message, Client &client);
+		bool nick(t_message &message, Client &client);
+		bool user(t_message &message, Client &client);
+		void userRegister(Client &client);
+		bool join(t_message &message, Client &client);
 };

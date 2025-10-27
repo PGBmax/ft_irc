@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/25 18:25:30 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/27 11:08:32 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -79,6 +79,12 @@ static void sendClient(int code, Client &client, std::string message)
 
 	ss << code << " " << (client._nick.empty() ? "*" : client._nick) << ": " << message << "\r\n";
 	client._out += ss.str();
+}
+
+static void sendMessage(Client &client, std::string message, pollfd &pfd)
+{
+	client._out += message + "\r\n";
+	pfd.events |= POLLOUT;
 }
 
 static bool isNickValid(const std::string &nick)
@@ -157,16 +163,16 @@ void Server::run()
 		for (size_t i = 1; i < _pfds.size(); ++i)
 		{
 			if (_pfds[i].revents & POLLIN)
-				readFromClient(i);
+				readFromClient(_pfds[i].fd);
 			if (_pfds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
 			{
-				closeClient(i);
+				closeClient(_pfds[i].fd);
 				--i;
 				continue;
 			}
 			if ((_pfds[i].revents & POLLOUT))
 			{
-				Client &client = getClient(i);
+				Client &client = getClient(_pfds[i].fd);
 				if (!client._out.empty())
 				{
 					ssize_t sent = send(_pfds[i].fd, client._out.data(), client._out.size(), 0);
@@ -203,16 +209,16 @@ void Server:: acceptNewClient()
 	std::cout << "Client " << fd << " connected from " << (res ? ip : "?") << ":" << ntohs(addr.sin_port) << std::endl;
 }
 
-void Server::readFromClient(size_t id)
+void Server::readFromClient(int fd)
 {
-	Client &client = getClient(id);
+	Client &client = getClient(fd);
 	char buffer[4096];
 
-	ssize_t n = recv(client._fd, buffer, sizeof(buffer), 0);
+	ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
 	if (n <= 0)
 	{
 		if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
-			return closeClient(id);
+			return closeClient(fd);
 		return;
 	}
 	
@@ -223,16 +229,29 @@ void Server::readFromClient(size_t id)
 	{
 		std::string line = client._in.substr(0, i);
 		client._in.erase(0, i + 2);
-		handleLine(id, line);
-		_pfds[id].events |= POLLOUT;
+		handleLine(fd, line);
+		_pfds[getPID(fd)].events |= POLLOUT;
 	}
 }
 
-void Server::ping(t_message &message, Client &client, size_t id)
+void Server::sendInChannel(Channel &channel, int senderFd, const std::string &line)
+{	
+	std::set<int>::const_iterator it = channel._members.begin();
+	for (; it != channel._members.end(); ++it)
+	{
+		if (*it == senderFd)
+			continue;
+
+		Client &client = getClient(*it);
+		sendMessage(client, line, _pfds[getPID(*it)]);
+	}
+}
+
+void Server::ping(t_message &message, Client &client)
 {
 	std::string param = message.params.empty() ? "" : message.params[0];
 	client._out += "PONG: " + param + "\r\n";
-	_pfds[id].events |= POLLOUT;
+	_pfds[getPID(client._fd)].events |= POLLOUT;
 }
 
 void Server::pass(t_message &message, Client &client)
@@ -286,7 +305,7 @@ bool Server::user(t_message &message, Client &client)
 	return true;
 }
 
-void Server::userRegister(t_message &message, Client &client)
+void Server::userRegister(Client &client)
 {
 	if (client._isPasswordValid && !client._nick.empty() && !client._user.empty())
 	{
@@ -296,13 +315,102 @@ void Server::userRegister(t_message &message, Client &client)
 	}
 }
 
-void Server::handleLine(size_t id, const std::string &line)
+bool Server::join(t_message &message, Client &client)
 {
-	Client &client = getClient(id);
+	if (message.params.empty())
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string name = message.params[0];
+	std::string key = (message.params.size() > 1 ? message.params[1] : "");
+	
+	if (name.empty() || name[0] != '#')
+	{
+		sendClient(403, client, "Invalid channel name");
+		return false;
+	}
+
+	
+	if (_channels.find(name) == _channels.end())
+		_channels.insert(std::map<std::string, Channel>::value_type(name, Channel(name)));
+	Channel &channel = getChannel(name);
+	
+	if (channel._inviteOnly && !channel._invited.count(client._fd))
+	{
+		sendClient(473, client, name + " Cannot join channel (+i)");
+		return false;
+	}
+
+	if (!channel._key.empty() && channel._key != key)
+	{
+		sendClient(475, client, name + " Cannot join channel (+k)");
+		return false;
+	}
+
+	if (channel._userLimit > 0 && static_cast<int>(channel._members.size()) >= channel._userLimit)
+	{
+		sendClient(471, client, name + " Cannot join channel (+l)");
+		return false;
+	}
+
+	channel._members.insert(client._fd);
+
+	if (channel._members.size() == 1)
+		channel._operators.insert(client._fd);
+
+	std::string line = client._nick + " JOIN " + name;
+	sendInChannel(channel, -1, line);
+
+	if (channel._topic.empty())
+		sendClient(331, client, name + " No topic is set");
+	else
+		sendClient(332, client, name + " " + channel._topic);
+
+	std::string nickList;
+	std::set<int>::iterator it = channel._members.begin();
+	for (; it != channel._members.end(); ++it)
+	{
+		Client &client = getClient(*it);
+		nickList += client._nick + " ";
+	}
+	
+	sendClient(353, client, name + " NAMES LIST: " + nickList);
+	sendClient(366, client, name + " End of NAMES list");
+	return true;
+}
+
+if (message.command == "PART") {
+    if (message.params.empty())
+        return sendClient(461, client, "Not enough parameters");
+    std::string chanName = message.params[0];
+    std::map<std::string, Channel>::iterator it = _channels.find(chanName);
+    if (it == _channels.end())
+        return sendClient(403, client, "No such channel");
+
+    Channel &chan = it->second;
+    if (!chan.hasMember(client._fd))
+        return sendClient(442, client, "You're not on that channel");
+
+    std::string reason = (message.params.size() > 1) ? message.params[1] : "Leaving";
+    std::string msg = ":" + client._nick + " PART " + chanName + " :" + reason;
+    broadcastChannel(chanName, -1, msg);
+
+    chan._members.erase(client._fd);
+    chan._operators.erase(client._fd);
+
+    if (chan._members.empty())
+        _channels.erase(it);
+}
+
+void Server::handleLine(int fd, const std::string &line)
+{
+	Client &client = getClient(fd);
 	t_message message = parseLine(line);
 
 	if (message.command == "PING")
-		return ping(message, client, id);
+		return ping(message, client);
 
 	if (message.command == "PASS")
 		return pass(message, client);
@@ -314,27 +422,44 @@ void Server::handleLine(size_t id, const std::string &line)
 		return;
 	
 	if (!client._registered)
-		return userRegister(message, client);
+		return userRegister(client);
+
+	if (message.command == "JOIN" && !join(message, client))
+		return;
 }
 
-void Server::closeClient(size_t id)
+void Server::closeClient(int fd)
 {
-	int fd = _pfds[id].fd;
 	std::cout << "Client " << fd << " quit" << std::endl;
 
 	close(fd);
 	_clients.erase(fd);
-	_pfds.erase(_pfds.begin() + id);
+	_pfds.erase(_pfds.begin() + getPID(fd));
 }
 
-Client &Server::getClient(size_t id)
+size_t Server::getPID(int fd) const
 {
-	if (id == 0 || id >= _pfds.size())
-		throw std::out_of_range("bad id");
+	size_t i = 1;
+	for (; i < _pfds.size(); ++i)
+	{
+		if (_pfds[i].fd == fd)
+			return i;
+	}
+	throw std::out_of_range("bad id");
+}
 
-	int fd = _pfds[id].fd;
+Client &Server::getClient(int fd)
+{
 	std::map<int, Client>::iterator it = _clients.find(fd);
 	if (it == _clients.end())
 		throw std::runtime_error("client not found");
+	return (it->second);
+}
+
+Channel &Server::getChannel(std::string name)
+{
+	std::map<std::string, Channel>::iterator it = _channels.find(name);
+	if (it == _channels.end())
+		throw std::runtime_error("channel not found");
 	return (it->second);
 }
