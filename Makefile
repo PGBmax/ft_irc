@@ -3,11 +3,11 @@ NAME = ircserv
 
 INCLUDES = include/
 
-CPP_FLAGS = -I$(INCLUDES) -Wall -Werror -Wextra -g -std=c++98
+CPP_FLAGS = -I$(INCLUDES) -Wall -Werror -Wextra -std=c++98 -g
 CC = c++
 
 SRC_DIR		=	srcs/
-SRC_NAME	=	main.cpp Server.cpp Client.cpp
+SRC_NAME	=	main.cpp Server.cpp Client.cpp Channel.cpp
 
 OBJ_DIR = obj/
 OBJ_NAME = $(SRC_NAME:.cpp=.o)

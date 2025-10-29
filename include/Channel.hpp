@@ -1,30 +1,35 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   Client.hpp                                         :+:      :+:    :+:   */
+/*   Channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/10/22 18:20:57 by pboucher          #+#    #+#             */
-/*   Updated: 2025/10/25 16:44:31 by rraumain         ###   ########.fr       */
+/*   Created: 2025/10/25 17:30:35 by rraumain          #+#    #+#             */
+/*   Updated: 2025/10/25 18:34:28 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #pragma once
 
 #include <string>
+#include <set>
 
-class Client
+class Channel
 {
-	public :
-		int			_fd;
-		std::string _in;
-		std::string _out;
-		bool		_isPasswordValid;
-		bool		_registered;
-		std::string	_nick;
-		std::string	_user;
-		std::string	_name;
+	public:
+		std::string		_name;
+		std::string		_topic;
+		std::set<int>	_members;
+		std::set<int>	_operators;
+		std::set<int>	_invited;
+		bool			_inviteOnly;
+		bool			_topicOperatorOnly;
+		std::string		_key;
+		int				_userLimit;
 
-		Client(int fd);
+		Channel(const std::string &name);
+		
+		bool isMember(int fd) const;
+		bool isOperator(int fd) const;
 };
