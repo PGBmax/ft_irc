@@ -6,7 +6,7 @@
 /*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/27 19:51:46 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/10/30 14:48:06 by rraumain         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -360,7 +360,7 @@ bool Server::join(t_message &message, Client &client)
 	if (channel._members.size() == 1)
 		channel._operators.insert(client._fd);
 
-	std::string line = client._nick + " JOIN " + name;
+	std::string line = ":" + client._nick + " JOIN " + name;
 	sendInChannel(channel, -1, line);
 
 	if (channel._topic.empty())
@@ -426,9 +426,10 @@ bool Server::privmsg(t_message &message, Client &client)
 
     std::string target = message.params[0];
     std::string text = message.params[1];
-    std::string line = client._nick + " PRIVMSG " + target + " :" + text;
+    std::string line = ":" + client._nick + " PRIVMSG " + target + " :" + text;
 
-    if (target[0] == '#') {
+    if (target[0] == '#') 
+	{
         if (_channels.find(target) == _channels.end())
 		{
             sendClient(403, client, "No such channel");
