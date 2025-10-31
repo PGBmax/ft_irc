@@ -6,39 +6,58 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/23 21:03:57 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/10/31 09:30:01 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #pragma once
 
-#include <vector>
 #include "Client.hpp"
+#include "Channel.hpp"
+#include <string>
+#include <poll.h>
+#include <vector>
+#include <map>
 
+typedef struct s_message
+{
+	std::string command; 
+	std::vector<std::string> params;
+} t_message;
 
 class Server
 {
-    public :
-        Server(const size_t &port, const std::string &password);
-        void run();
-        void createSocket();
+	public :
+		Server(int port, const std::string &password);
+		~Server();
 
-        //sert uniquement à accepter une nouvelle connexion entrante sur le socket d’écoute
-        void acceptNewClient();// on ecoute si un client est en demande de connnection et on accepte
-        void handleClientData(int fd);// gerer tous ce que le client fait
+		void run();
 
-        static void handleSignal(int signal);
+	private :
+		int								_port;
+		std::string						_password;
+		int								_listenFd;
+		std::vector<pollfd>				_pfds;
+		std::map<int, Client>			_clients;
+		std::map<std::string, Channel> 	_channels;
 
-        void closeAllFds();
-        void clearClient(int fd);
+		void setupListenSocket();
+		void acceptNewClient();
+		void readFromClient(int fd);
+		void closeClient(int fd);
+		size_t getPID(int fd) const;
+		Client &getClient(int fd);
+		Client &getClientByNick(std::string &nick);
+		Channel &getChannel(std::string &name);
+		void handleLine(int fd, const std::string &line);
+		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
 
-    private :
-        int _port;
-        std::string _password;
-        int _serverSocketFd;
-        std::vector<Client> _clients;
-        std::vector<struct pollfd> _fds;
-        static bool _signal; // un membre static aapartient a la classe pas a chaque objet 
-        //donc il n existe qu'une seul fois pour le serveur
-    
+		void ping(t_message &message, Client &client);
+		void pass(t_message &message, Client &client);
+		bool nick(t_message &message, Client &client);
+		bool user(t_message &message, Client &client);
+		void userRegister(Client &client);
+		bool join(t_message &message, Client &client);
+		bool part(t_message &message, Client &client);
+		bool privmsg(t_message &message, Client &client);
 };
