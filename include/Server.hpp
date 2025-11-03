@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/03 09:06:26 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/03 11:20:03 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -60,5 +60,5 @@ class Server
 		bool join(t_message &message, Client &client);
 		bool part(t_message &message, Client &client);
 		bool privmsg(t_message &message, Client &client);
-		void Server::mode(t_message &message, Client &client);
+		void mode(t_message &message, Client &client);
 };
