@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:30:35 by rraumain          #+#    #+#             */
-/*   Updated: 2025/11/03 10:35:13 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/03 18:36:20 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,4 +32,7 @@ class Channel
 		
 		bool isMember(int fd) const;
 		bool isOperator(int fd) const;
+
+		void addOperator(int fd);
+		void removeOperator(int fd);
 };

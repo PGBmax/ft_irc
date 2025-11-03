@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/03 11:17:07 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/03 18:47:27 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -462,6 +462,76 @@ bool Server::privmsg(t_message &message, Client &client)
 }
 
 
+// Erreur							Code		Condition
+// Pas assez de paramètres			461		Manque d’argument pour un mode (+k, +l, +o)
+// Canal inexistant				    403		MODE sur un canal qui n’existe pas
+// Non membre du canal				442		Le client n’est pas dans le canal
+// Pas opérateur					482		Le client n’a pas les droits
+// Nick inconnu ou hors du canal 	441		+o ou -o sur un nick inexistant
+
+// 10   MODE #test +itk  A GERER
+
+
+void Server::setMode(Channel &channel, Client &client, t_message &message)
+{
+	
+	std::string modeStr = message.params[1];
+	bool addMode;
+	char modeChar;
+	
+	if (modeStr[0] == '+')
+		addMode = true;
+	else
+		addMode = false;
+		
+	modeChar = modeStr[1];
+	
+	if (modeChar == 'i')
+		channel._inviteOnly = addMode;
+	else if (modeChar == 't')
+		channel._topicOperatorOnly = addMode;
+	else if (modeChar == 'k')
+	{
+		//MODE #test +k 1234
+		if (addMode && message.params.size() > 2)
+			channel._key = message.params[2];
+		// MODE #test -k
+		else if (!addMode)
+			channel._key = ""; // on enleve le mdp
+	}
+	else if (modeChar == 'l')
+	{
+		std::stringstream ss(message.params[2]);
+		int limit;
+		ss >> limit;
+		
+		// MODE #test +l 5	
+		if (addMode && message.params.size() > 2)
+			channel._userLimit = limit;
+    	else if (!addMode) // MODE #test -l
+        	channel._userLimit = 0; 	
+	}
+	else if (modeChar == 'o')
+	{
+		if (message.params.size() > 2)
+    	{
+        	std::string targetNick = message.params[2];
+        
+        	if (addMode)
+            	channel.addOperator(client._fd);
+        	else
+            	channel.removeOperator(client._fd);
+    	}
+	}
+	else
+		sendClient(472, client, "Unknown mode char");
+	
+}
+
+
+
+
+
 void Server::mode(t_message &message, Client &client)
 {
 	// cas ou cmd = MODE 
@@ -503,7 +573,7 @@ void Server::mode(t_message &message, Client &client)
 		if (!channel.isOperator(client._fd))
 			return sendClient(482, client, "You're not channel operator");
 		// sinon si le demandeur est l'operateur
-		// setMode(channel, client, message);
+		setMode(channel, client, message);
 	}
 }
 

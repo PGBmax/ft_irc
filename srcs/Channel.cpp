@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:55:23 by rraumain          #+#    #+#             */
-/*   Updated: 2025/11/03 10:44:11 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/03 18:37:11 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,3 +30,13 @@ bool Channel::isOperator(int fd) const
 	return _operators.count(fd) > 0;
 }
 
+void Channel::addOperator(int fd)
+{
+	 if (isMember(fd))
+        _operators.insert(fd);
+}
+
+void Channel::removeOperator(int fd)
+{
+	 _operators.erase(fd);
+}
