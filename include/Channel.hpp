@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.hpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: rraumain <rraumain@student.42.fr>          +#+  +:+       +#+        */
+/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:30:35 by rraumain          #+#    #+#             */
-/*   Updated: 2025/10/25 18:34:28 by rraumain         ###   ########.fr       */
+/*   Updated: 2025/11/03 10:35:13 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,10 +23,10 @@ class Channel
 		std::set<int>	_members;
 		std::set<int>	_operators;
 		std::set<int>	_invited;
-		bool			_inviteOnly;
-		bool			_topicOperatorOnly;
-		std::string		_key;
-		int				_userLimit;
+		bool			_inviteOnly; //i
+		bool			_topicOperatorOnly; //t
+		std::string		_key; //k
+		int				_userLimit; //l
 
 		Channel(const std::string &name);
 		

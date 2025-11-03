@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/10/31 09:24:30 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/03 11:17:07 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -461,6 +461,54 @@ bool Server::privmsg(t_message &message, Client &client)
 	return true;
 }
 
+
+void Server::mode(t_message &message, Client &client)
+{
+	// cas ou cmd = MODE 
+	if (message.params.empty())
+		sendClient(461, client, "Not enough parameters");
+	
+	// cas ou cmd = MODE #channelName
+	std::string name = message.params[0];
+
+	// est ce que le channel existe
+	std::map<std::string, Channel>::iterator it = _channels.find(name);
+	if (it == _channels.end())
+		sendClient(403, client, "No such channel");
+	
+	// le channel existe : est ce que le demandeur est membre
+	Channel &channel = it->second;
+	if (!channel.isMember(client._fd))
+		return sendClient(442, client, "You're not on that channel");
+
+	// le demandeur est membre : quel est la commande exacte
+	// si cmd = MODE #channel alors tous les membres ont droit a cette cmd
+	if (message.params.size() == 1)
+	{
+		std::string modes = "+";
+		if (channel._inviteOnly == true)
+			modes += "i";
+		if (channel._topicOperatorOnly == true)
+			modes += "t";
+		if (!channel._key.empty())
+			modes += "k";
+		if (channel._userLimit > 0)
+			modes += "l";
+		return sendClient(324, client, name + " " + modes);
+	}
+	else if (message.params.size() > 1)
+	{
+		// si cmd = MODE #channel +autre params
+		// on verifie si le demandeur n'est pas l'operateur
+		if (!channel.isOperator(client._fd))
+			return sendClient(482, client, "You're not channel operator");
+		// sinon si le demandeur est l'operateur
+		// setMode(channel, client, message);
+	}
+}
+
+
+
 void Server::handleLine(int fd, const std::string &line)
 {
 	Client &client = getClient(fd);
@@ -489,6 +537,9 @@ void Server::handleLine(int fd, const std::string &line)
 	
 	if (message.command == "PRIVMSG" && !privmsg(message, client))
 		return;
+
+	if (message.command == "MODE")
+		return mode(message, client);
 }
 
 void Server::closeClient(int fd)
