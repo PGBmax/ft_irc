@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/03 18:47:27 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/04 10:59:23 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -474,7 +474,6 @@ bool Server::privmsg(t_message &message, Client &client)
 
 void Server::setMode(Channel &channel, Client &client, t_message &message)
 {
-	
 	std::string modeStr = message.params[1];
 	bool addMode;
 	char modeChar;
@@ -509,19 +508,34 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 		if (addMode && message.params.size() > 2)
 			channel._userLimit = limit;
     	else if (!addMode) // MODE #test -l
-        	channel._userLimit = 0; 	
+        	channel._userLimit = -1;
 	}
 	else if (modeChar == 'o')
 	{
 		if (message.params.size() > 2)
     	{
-        	std::string targetNick = message.params[2];
-        
-        	if (addMode)
-            	channel.addOperator(client._fd);
-        	else
-            	channel.removeOperator(client._fd);
+        	std::string nickToModify = message.params[2];
+			try
+			{
+				Client &clientToModify = getClientByNick(message.params[2]);
+				if (!channel.isMember(clientToModify._fd))
+				{
+					sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
+					return;
+				}
+        		if (addMode)
+            		channel.addOperator(clientToModify._fd); // +o lili 
+        		else
+            		channel.removeOperator(clientToModify._fd); // -o lili
+			}
+			catch (const std::exception &e)
+			{
+				sendClient(401, client, nickToModify + " :No such nick");
+				return;
+			}
     	}
+		else
+			sendClient(461, client, "Not enough parameters");
 	}
 	else
 		sendClient(472, client, "Unknown mode char");
@@ -529,14 +543,31 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 }
 
 
+void Server::announceModeChange(Channel &channel, Client &client, t_message &message)
+{
+	std::string modeChange = message.params[1];
+    std::string targetNick;
+    if (message.params.size() > 2)
+        targetNick = message.params[2];
 
+	std::string reply = client._nick + " MODE " + channel._name + " " + modeChange;
+    if (!targetNick.empty())
+        reply += " " + targetNick;
+		
+	std::set<int>::iterator it = channel._members.begin();
+	for (; it != channel._members.end(); ++it)
+	{
+    	int memberFd = *it; // fd du membre
+    	sendClient(0, _clients[memberFd], reply);
+	}
+}
 
 
 void Server::mode(t_message &message, Client &client)
 {
 	// cas ou cmd = MODE 
 	if (message.params.empty())
-		sendClient(461, client, "Not enough parameters");
+		return sendClient(461, client, "Not enough parameters");
 	
 	// cas ou cmd = MODE #channelName
 	std::string name = message.params[0];
@@ -544,7 +575,7 @@ void Server::mode(t_message &message, Client &client)
 	// est ce que le channel existe
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
-		sendClient(403, client, "No such channel");
+		return sendClient(403, client, "No such channel");
 	
 	// le channel existe : est ce que le demandeur est membre
 	Channel &channel = it->second;
@@ -564,7 +595,8 @@ void Server::mode(t_message &message, Client &client)
 			modes += "k";
 		if (channel._userLimit > 0)
 			modes += "l";
-		return sendClient(324, client, name + " " + modes);
+		sendClient(324, client, name + " " + modes);
+		return;
 	}
 	else if (message.params.size() > 1)
 	{
@@ -573,7 +605,9 @@ void Server::mode(t_message &message, Client &client)
 		if (!channel.isOperator(client._fd))
 			return sendClient(482, client, "You're not channel operator");
 		// sinon si le demandeur est l'operateur
-		setMode(channel, client, message);
+		setMode(channel, client, message); 
+		//Annoncer le changement a tous les membres
+		announceModeChange(channel, client, message);
 	}
 }
 
