@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/04 10:59:23 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/05 11:30:55 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -470,77 +470,183 @@ bool Server::privmsg(t_message &message, Client &client)
 // Nick inconnu ou hors du canal 	441		+o ou -o sur un nick inexistant
 
 // 10   MODE #test +itk  A GERER
+//      MODE #test +itk 1234 A GERER
+
+
+// void Server::setMode(Channel &channel, Client &client, t_message &message)
+// {
+// 	std::string modeStr = message.params[1];
+// 	bool addMode;
+// 	char modeChar;
+	
+// 	//MODE #test +itk 1234
+	
+// 	if (modeStr[0] == '+')
+// 		addMode = true;
+// 	else
+// 		addMode = false;
+		
+// 	modeChar = modeStr[1];
+	
+// 	if (modeChar == 'i')
+// 		channel._inviteOnly = addMode;
+// 	else if (modeChar == 't')
+// 		channel._topicOperatorOnly = addMode;
+// 	else if (modeChar == 'k')
+// 	{
+// 		//MODE #test +k 1234
+// 		if (addMode && message.params.size() > 2)
+// 			channel._key = message.params[2];
+// 		// MODE #test -k
+// 		else if (!addMode)
+// 			channel._key = ""; // on enleve le mdp
+// 	}
+// 	else if (modeChar == 'l')
+// 	{
+// 		std::stringstream ss(message.params[2]);
+// 		int limit;
+// 		ss >> limit;
+		
+// 		// MODE #test +l 5	
+// 		if (addMode && message.params.size() > 2)
+// 			channel._userLimit = limit;
+//     	else if (!addMode) // MODE #test -l
+//         	channel._userLimit = -1;
+// 	}
+// 	else if (modeChar == 'o')
+// 	{
+// 		if (message.params.size() > 2)
+//     	{
+//         	std::string nickToModify = message.params[2];
+// 			try
+// 			{
+// 				Client &clientToModify = getClientByNick(message.params[2]);
+// 				if (!channel.isMember(clientToModify._fd))
+// 				{
+// 					sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
+// 					return;
+// 				}
+//         		if (addMode)
+//             		channel.addOperator(clientToModify._fd); // +o lili 
+//         		else
+//             		channel.removeOperator(clientToModify._fd); // -o lili
+// 			}
+// 			catch (const std::exception &e)
+// 			{
+// 				sendClient(401, client, nickToModify + " :No such nick");
+// 				return;
+// 			}
+//     	}
+// 		else
+// 			sendClient(461, client, "Not enough parameters");
+// 	}
+// 	else
+// 		sendClient(472, client, "Unknown mode char");
+	
+// }
+
+
 
 
 void Server::setMode(Channel &channel, Client &client, t_message &message)
 {
-	std::string modeStr = message.params[1];
+	std::string modeStr = message.params[1]; 
 	bool addMode;
-	char modeChar;
+	int paramIndex = 2; // index de message.params
+	
+	//MODE #channel +itklo 1234 5 Alice
+	//message.params[0] = "#channel"
+	//message.params[1] = modeStr = "+itklo"
+	//message.params[2] = "1234" // int paramIndex = 2
+	//message.params[3] = "5"
+	//message.params[4] = "Alice"
 	
 	if (modeStr[0] == '+')
 		addMode = true;
 	else
 		addMode = false;
 		
-	modeChar = modeStr[1];
-	
-	if (modeChar == 'i')
-		channel._inviteOnly = addMode;
-	else if (modeChar == 't')
-		channel._topicOperatorOnly = addMode;
-	else if (modeChar == 'k')
+	for (int j = 1; j < modeStr.size(); j++)
 	{
-		//MODE #test +k 1234
-		if (addMode && message.params.size() > 2)
-			channel._key = message.params[2];
-		// MODE #test -k
-		else if (!addMode)
-			channel._key = ""; // on enleve le mdp
-	}
-	else if (modeChar == 'l')
-	{
-		std::stringstream ss(message.params[2]);
-		int limit;
-		ss >> limit;
-		
-		// MODE #test +l 5	
-		if (addMode && message.params.size() > 2)
-			channel._userLimit = limit;
-    	else if (!addMode) // MODE #test -l
-        	channel._userLimit = -1;
-	}
-	else if (modeChar == 'o')
-	{
-		if (message.params.size() > 2)
-    	{
-        	std::string nickToModify = message.params[2];
-			try
+		if (modeStr[j] == 'i')
+			channel._inviteOnly = addMode;
+		else if (modeStr[j] == 't')
+			channel._topicOperatorOnly = addMode;
+		else if (modeStr[j] == 'k')
+		{
+			if (addMode)
 			{
-				Client &clientToModify = getClientByNick(message.params[2]);
-				if (!channel.isMember(clientToModify._fd))
+				if (paramIndex < message.params.size())
 				{
-					sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
-					return;
+					channel._key = message.params[paramIndex];
+					paramIndex++;
 				}
-        		if (addMode)
-            		channel.addOperator(clientToModify._fd); // +o lili 
-        		else
-            		channel.removeOperator(clientToModify._fd); // -o lili
+				else
+					sendClient(461, client, "Not enough parameters");
+			//MODE #test +kl 1234 5  --> A GERER 
 			}
-			catch (const std::exception &e)
+			else
+				channel._key = "";
+		}
+		else if (modeStr[j] == 'l')
+		{
+			if (addMode)
 			{
-				sendClient(401, client, nickToModify + " :No such nick");
-				return;
+				if (paramIndex < message.params.size())
+				{
+					std::stringstream ss(message.params[paramIndex]);
+					int limit;
+					ss >> limit;
+					channel._userLimit = limit;
+					paramIndex++;
+				}
+				else
+					sendClient(461, client, "Not enough parameters");
 			}
-    	}
+			else
+				channel._userLimit = -1;	
+		}
+		else if (modeStr[j] == 'o')
+		{
+			if (paramIndex < message.params.size())
+			{				
+				std::string nickToModify = message.params[paramIndex];
+				paramIndex++;
+				try
+				{
+					Client &clientToModify = getClientByNick(nickToModify);
+					if (!channel.isMember(clientToModify._fd))
+					{
+						sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
+						return;
+					}
+        			if (addMode)
+            			channel.addOperator(clientToModify._fd); // +o lili 
+        			else
+            			channel.removeOperator(clientToModify._fd); // -o lili
+				}
+				catch (const std::exception &e)
+				{
+					sendClient(401, client, nickToModify + " :No such nick");
+					return;
+				}	
+			}
+			else
+			{
+				sendClient(461, client, "Not enough parameters");
+			}
+		}
 		else
-			sendClient(461, client, "Not enough parameters");
+			sendClient(472, client, "Unknown mode char");
 	}
-	else
-		sendClient(472, client, "Unknown mode char");
-	
 }
+
+
+
+
+
+
+
 
 
 void Server::announceModeChange(Channel &channel, Client &client, t_message &message)
@@ -557,7 +663,7 @@ void Server::announceModeChange(Channel &channel, Client &client, t_message &mes
 	std::set<int>::iterator it = channel._members.begin();
 	for (; it != channel._members.end(); ++it)
 	{
-    	int memberFd = *it; // fd du membre
+    	int memberFd = *it; //fd du membre
     	sendClient(0, _clients[memberFd], reply);
 	}
 }

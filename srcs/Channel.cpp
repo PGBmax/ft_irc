@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:55:23 by rraumain          #+#    #+#             */
-/*   Updated: 2025/11/03 18:37:11 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/05 09:42:48 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,7 +25,8 @@ bool Channel::isMember(int fd) const
 
 bool Channel::isOperator(int fd) const
 {
-	if (_operators.size() == 1)
+	//s'il n;y a qu'un seul membre et que c'est bien lui
+	if (_members.size() == 1 && _members.count(fd))
 		return true;
 	return _operators.count(fd) > 0;
 }
