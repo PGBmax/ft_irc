@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/05 11:30:55 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/05 17:09:23 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -461,98 +461,187 @@ bool Server::privmsg(t_message &message, Client &client)
 	return true;
 }
 
+bool Server::kick(t_message &message, Client &client)
+{
+	if (message.params.size() < 2)
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
 
-// Erreur							Code		Condition
-// Pas assez de paramètres			461		Manque d’argument pour un mode (+k, +l, +o)
-// Canal inexistant				    403		MODE sur un canal qui n’existe pas
-// Non membre du canal				442		Le client n’est pas dans le canal
-// Pas opérateur					482		Le client n’a pas les droits
-// Nick inconnu ou hors du canal 	441		+o ou -o sur un nick inexistant
+	std::string channelName = message.params[0];
+	std::string targetNick = message.params[1];
+	std::string reason = message.params.size() > 2 ? message.params[2] : client._nick;
 
-// 10   MODE #test +itk  A GERER
-//      MODE #test +itk 1234 A GERER
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
 
+	Channel &channel = it->second;
 
-// void Server::setMode(Channel &channel, Client &client, t_message &message)
-// {
-// 	std::string modeStr = message.params[1];
-// 	bool addMode;
-// 	char modeChar;
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+	if (!channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	Client *targetClient = NULL;
+	try
+	{
+		targetClient = &getClientByNick(targetNick);
+	}
+	catch(...)
+	{
+		sendClient(401, client, "No such nick");
+		return false;
+	}
+
+	if (!channel.isMember(targetClient->_fd))
+	{
+		sendClient(441, client, targetNick + " They aren't on that channel");
+		return false;
+	}
+
+	if (targetClient->_fd == client._fd)
+	{
+		sendClient(484, client, "You cannot kick yourself from the channel");
+		return false;
+	}
+
+	std::string kickMessage = ":" + client._nick + " KICK " + channelName + " " + targetNick + " :" + reason;
+	sendInChannel(channel, -1, kickMessage);
+
+	channel._members.erase(targetClient->_fd);
+	channel._operators.erase(targetClient->_fd);
+	channel._invited.erase(targetClient->_fd);
+
+	if (channel._members.empty())
+		_channels.erase(it);
+
+	return true;
+}
+
+bool Server::topic(t_message &message, Client &client)
+{
+	if (message.params.empty())
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string channelName = message.params[0];
+
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
+
+	Channel &channel = it->second;
+
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+
+	if (message.params.size() == 1)
+	{
+		if (channel._topic.empty())
+			sendClient(331, client, channelName + " No topic is set");
+		else
+			sendClient(332, client, channelName + " " + channel._topic);
+		return true;
+	}
+
+	if (channel._topicOperatorOnly && !channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	std::string newTopic = message.params[1];
+	channel._topic = newTopic;
+
+	std::string topicMessage = ":" + client._nick + " TOPIC " + channelName + " :" + newTopic;
+	sendInChannel(channel, -1, topicMessage);
+
+	return true;
+}
+
+bool Server::invite(t_message &message, Client &client)
+{
+	if (message.params.size() < 2)
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string targetNick = message.params[0];
+	std::string channelName = message.params[1];
+
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
+
+	Channel &channel = it->second;
+
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+
+	if (channel._inviteOnly && !channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	Client *targetClient = NULL;
+	try
+	{
+		targetClient = &getClientByNick(targetNick);
+	}
+	catch(...)
+	{
+		sendClient(401, client, "No such nick");
+		return false;
+	}
+
+	if (channel.isMember(targetClient->_fd))
+	{
+		sendClient(443, client, targetNick + " is already on channel");
+		return false;
+	}
+
+	channel._invited.insert(targetClient->_fd);
+
+	sendClient(341, client, targetNick + " " + channelName);
 	
-// 	//MODE #test +itk 1234
-	
-// 	if (modeStr[0] == '+')
-// 		addMode = true;
-// 	else
-// 		addMode = false;
-		
-// 	modeChar = modeStr[1];
-	
-// 	if (modeChar == 'i')
-// 		channel._inviteOnly = addMode;
-// 	else if (modeChar == 't')
-// 		channel._topicOperatorOnly = addMode;
-// 	else if (modeChar == 'k')
-// 	{
-// 		//MODE #test +k 1234
-// 		if (addMode && message.params.size() > 2)
-// 			channel._key = message.params[2];
-// 		// MODE #test -k
-// 		else if (!addMode)
-// 			channel._key = ""; // on enleve le mdp
-// 	}
-// 	else if (modeChar == 'l')
-// 	{
-// 		std::stringstream ss(message.params[2]);
-// 		int limit;
-// 		ss >> limit;
-		
-// 		// MODE #test +l 5	
-// 		if (addMode && message.params.size() > 2)
-// 			channel._userLimit = limit;
-//     	else if (!addMode) // MODE #test -l
-//         	channel._userLimit = -1;
-// 	}
-// 	else if (modeChar == 'o')
-// 	{
-// 		if (message.params.size() > 2)
-//     	{
-//         	std::string nickToModify = message.params[2];
-// 			try
-// 			{
-// 				Client &clientToModify = getClientByNick(message.params[2]);
-// 				if (!channel.isMember(clientToModify._fd))
-// 				{
-// 					sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
-// 					return;
-// 				}
-//         		if (addMode)
-//             		channel.addOperator(clientToModify._fd); // +o lili 
-//         		else
-//             		channel.removeOperator(clientToModify._fd); // -o lili
-// 			}
-// 			catch (const std::exception &e)
-// 			{
-// 				sendClient(401, client, nickToModify + " :No such nick");
-// 				return;
-// 			}
-//     	}
-// 		else
-// 			sendClient(461, client, "Not enough parameters");
-// 	}
-// 	else
-// 		sendClient(472, client, "Unknown mode char");
-	
-// }
+	std::string inviteMessage = client._nick + " INVITE " + targetNick + " " + channelName;
+	sendMessage(*targetClient, inviteMessage, _pfds[getPID(targetClient->_fd)]);
 
-
-
+	return true;
+}
 
 void Server::setMode(Channel &channel, Client &client, t_message &message)
 {
 	std::string modeStr = message.params[1]; 
 	bool addMode;
-	int paramIndex = 2; // index de message.params
+	size_t paramIndex = 2; // index de message.params
 	
 	//MODE #channel +itklo 1234 5 Alice
 	//message.params[0] = "#channel"
@@ -566,7 +655,7 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 	else
 		addMode = false;
 		
-	for (int j = 1; j < modeStr.size(); j++)
+	for (size_t j = 1; j < modeStr.size(); j++)
 	{
 		if (modeStr[j] == 'i')
 			channel._inviteOnly = addMode;
@@ -644,31 +733,6 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 
 
 
-
-
-
-
-
-void Server::announceModeChange(Channel &channel, Client &client, t_message &message)
-{
-	std::string modeChange = message.params[1];
-    std::string targetNick;
-    if (message.params.size() > 2)
-        targetNick = message.params[2];
-
-	std::string reply = client._nick + " MODE " + channel._name + " " + modeChange;
-    if (!targetNick.empty())
-        reply += " " + targetNick;
-		
-	std::set<int>::iterator it = channel._members.begin();
-	for (; it != channel._members.end(); ++it)
-	{
-    	int memberFd = *it; //fd du membre
-    	sendClient(0, _clients[memberFd], reply);
-	}
-}
-
-
 void Server::mode(t_message &message, Client &client)
 {
 	// cas ou cmd = MODE 
@@ -713,7 +777,16 @@ void Server::mode(t_message &message, Client &client)
 		// sinon si le demandeur est l'operateur
 		setMode(channel, client, message); 
 		//Annoncer le changement a tous les membres
-		announceModeChange(channel, client, message);
+		std::string modeChange = message.params[1];
+		std::string targetNick;
+		if (message.params.size() > 2)
+			targetNick = message.params[2];
+
+		std::string reply = client._nick + ": MODE " + channel._name + " " + modeChange;
+		if (!targetNick.empty())
+			reply += " " + targetNick;
+		sendInChannel(channel, -1, reply);
+		// announceModeChange(channel, client, message);
 	}
 }
 
@@ -747,10 +820,19 @@ void Server::handleLine(int fd, const std::string &line)
 	
 	if (message.command == "PRIVMSG" && !privmsg(message, client))
 		return;
-
+	
+	if (message.command == "KICK" && !kick(message, client))
+		return;
+	
+	if (message.command == "TOPIC" && !topic(message, client))
+		return;
+	
+	if (message.command == "INVITE" && !invite(message, client))
+		return;
+	
 	if (message.command == "MODE")
 		return mode(message, client);
-}
+	}
 
 void Server::closeClient(int fd)
 {
@@ -797,4 +879,179 @@ Channel &Server::getChannel(std::string &name)
 	if (it == _channels.end())
 		throw std::runtime_error("channel not found");
 	return (it->second);
+}
+bool Server::kick(t_message &message, Client &client)
+{
+	if (message.params.size() < 2)
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string channelName = message.params[0];
+	std::string targetNick = message.params[1];
+	std::string reason = message.params.size() > 2 ? message.params[2] : client._nick;
+
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
+
+	Channel &channel = it->second;
+
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+	if (!channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	Client *targetClient = NULL;
+	try
+	{
+		targetClient = &getClientByNick(targetNick);
+	}
+	catch(...)
+	{
+		sendClient(401, client, "No such nick");
+		return false;
+	}
+
+	if (!channel.isMember(targetClient->_fd))
+	{
+		sendClient(441, client, targetNick + " They aren't on that channel");
+		return false;
+	}
+
+	if (targetClient->_fd == client._fd)
+	{
+		sendClient(484, client, "You cannot kick yourself from the channel");
+		return false;
+	}
+
+	std::string kickMessage = ":" + client._nick + " KICK " + channelName + " " + targetNick + " :" + reason;
+	sendInChannel(channel, -1, kickMessage);
+
+	channel._members.erase(targetClient->_fd);
+	channel._operators.erase(targetClient->_fd);
+	channel._invited.erase(targetClient->_fd);
+
+	if (channel._members.empty())
+		_channels.erase(it);
+
+	return true;
+}
+
+bool Server::topic(t_message &message, Client &client)
+{
+	if (message.params.empty())
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string channelName = message.params[0];
+
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
+
+	Channel &channel = it->second;
+
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+
+	if (message.params.size() == 1)
+	{
+		if (channel._topic.empty())
+			sendClient(331, client, channelName + " No topic is set");
+		else
+			sendClient(332, client, channelName + " " + channel._topic);
+		return true;
+	}
+
+	if (channel._topicOperatorOnly && !channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	std::string newTopic = message.params[1];
+	channel._topic = newTopic;
+
+	std::string topicMessage = ":" + client._nick + " TOPIC " + channelName + " :" + newTopic;
+	sendInChannel(channel, -1, topicMessage);
+
+	return true;
+}
+
+bool Server::invite(t_message &message, Client &client)
+{
+	if (message.params.size() < 2)
+	{
+		sendClient(461, client, "Not enough parameters");
+		return false;
+	}
+
+	std::string targetNick = message.params[0];
+	std::string channelName = message.params[1];
+
+	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+	if (it == _channels.end())
+	{
+		sendClient(403, client, "No such channel");
+		return false;
+	}
+
+	Channel &channel = it->second;
+
+	if (!channel.isMember(client._fd))
+	{
+		sendClient(442, client, "You're not on that channel");
+		return false;
+	}
+
+	if (channel._inviteOnly && !channel.isOperator(client._fd))
+	{
+		sendClient(482, client, "You're not channel operator");
+		return false;
+	}
+
+	Client *targetClient = NULL;
+	try
+	{
+		targetClient = &getClientByNick(targetNick);
+	}
+	catch(...)
+	{
+		sendClient(401, client, "No such nick");
+		return false;
+	}
+
+	if (channel.isMember(targetClient->_fd))
+	{
+		sendClient(443, client, targetNick + " is already on channel");
+		return false;
+	}
+
+	channel._invited.insert(targetClient->_fd);
+
+	sendClient(341, client, targetNick + " " + channelName);
+	
+	std::string inviteMessage = client._nick + " INVITE " + targetNick + " " + channelName;
+	sendMessage(*targetClient, inviteMessage, _pfds[getPID(targetClient->_fd)]);
+
+	return true;
 }

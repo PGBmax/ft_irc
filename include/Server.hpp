@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/04 10:44:47 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/05 16:27:40 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,5 +62,7 @@ class Server
 		bool privmsg(t_message &message, Client &client);
 		void mode(t_message &message, Client &client);
 		void setMode(Channel &channel, Client &client, t_message &message);
-		void announceModeChange(Channel &channel, Client &client, t_message &message);
+		bool kick(t_message &message, Client &client);
+		bool topic(t_message &message, Client &client);
+		bool invite(t_message &message, Client &client);
 };
