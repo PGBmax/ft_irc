@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/05 18:12:51 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/06 23:43:28 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -100,13 +100,15 @@ static bool isNickValid(const std::string &nick)
 	return true;
 }
 
-Server::Server(int port, const std::string &password) : _port(port), _password(password), _listenFd(-1)
+Server::Server(int port, const std::string &password) : _port(port), _password(password), _listenFd(-1), _bot(NULL)
 {
 	setupListenSocket();
+	_bot = new Bot(this);
 }
 
 Server::~Server()
 {
+	delete _bot;
 	if (_listenFd != -1)
 		close(_listenFd);
 	std::cout << "Server destructed" << std::endl;
@@ -147,14 +149,25 @@ void Server::setupListenSocket()
 
 void Server::run()
 {
+	time_t lastTimeoutCheck = time(NULL);
+	
 	while (true)
 	{
-		int n = poll(&_pfds[0], _pfds.size(), -1);
+		int n = poll(&_pfds[0], _pfds.size(), 1000);
 		if (n < 0)
 		{
 			if (errno == EINTR)
 				continue;
 			throw std::runtime_error("poll failed");
+		}
+
+		time_t current_time = time(NULL);
+		if (current_time - lastTimeoutCheck > 30) {
+			if (_bot) {
+				// TODO: implement timeout checking when bot timeouts are ready
+				// _bot->checkTimeouts();
+			}
+			lastTimeoutCheck = current_time;
 		}
 
 		if (_pfds[0].revents & POLLIN)
@@ -411,6 +424,11 @@ bool Server::part(t_message &message, Client &client)
 	channel._members.erase(client._fd);
 	channel._operators.erase(client._fd);
 
+	if (_bot) {
+		// TODO: implement bot cleanup when player leaves channel
+		// _bot->onPlayerLeftChannel(client._fd, name);
+	}
+
 	if (channel._members.empty())
 		_channels.erase(it);
 	return true;
@@ -441,6 +459,14 @@ bool Server::privmsg(t_message &message, Client &client)
 		{
             sendClient(404, client, "Cannot send to channel");
 			return false;
+		}
+
+        std::string upperText = text;
+        std::transform(upperText.begin(), upperText.end(), upperText.begin(), ::toupper);
+        if (upperText.find("CONNECT4") == 0 || upperText.find("ACCEPT") == 0 || upperText.find("PLAY") == 0 || upperText.find("FORFEIT") == 0) {
+			if (_bot && _bot->handleBotCommand(message, client, target)) {
+				return true;
+			}
 		}
 
         sendInChannel(channel, client._fd, line);
@@ -641,7 +667,7 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 {
 	std::string modeStr = message.params[1]; 
 	bool addMode;
-	size_t paramIndex = 2; // index de message.params
+	size_t paramIndex = 2;
 	
 	//MODE #channel +itklo 1234 5 Alice
 	//message.params[0] = "#channel"
@@ -710,9 +736,9 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 						return;
 					}
         			if (addMode)
-            			channel.addOperator(clientToModify._fd); // +o lili 
+            			channel.addOperator(clientToModify._fd);
         			else
-            			channel.removeOperator(clientToModify._fd); // -o lili
+            			channel.removeOperator(clientToModify._fd);
 				}
 				catch (const std::exception &e)
 				{
@@ -838,6 +864,11 @@ void Server::closeClient(int fd)
 {
 	std::cout << "Client " << fd << " quit" << std::endl;
 
+	if (_bot) {
+		// TODO: implement bot cleanup when client disconnects
+		// _bot->onClientDisconnected(fd);
+	}
+
 	close(fd);
 	_clients.erase(fd);
 	_pfds.erase(_pfds.begin() + getPID(fd));
@@ -879,4 +910,57 @@ Channel &Server::getChannel(std::string &name)
 	if (it == _channels.end())
 		throw std::runtime_error("channel not found");
 	return (it->second);
+}
+
+void Server::sendToChannel(const std::string &channel, const std::string &message)
+{
+	try {
+		std::string channelName = channel;
+		Channel &ch = getChannel(channelName);
+		std::string formattedMessage = ":Bot PRIVMSG " + channel + " :" + message;
+		sendInChannel(ch, -1, formattedMessage);
+	} catch (...) {
+	}
+}
+
+void Server::sendToClient(int client_fd, const std::string &message)
+{
+	try {
+		Client &client = getClient(client_fd);
+		std::string formattedMessage = ":Bot PRIVMSG " + client._nick + " :" + message;
+		sendMessage(client, formattedMessage, _pfds[getPID(client_fd)]);
+	} catch (...) {
+	}
+}
+
+std::string Server::getClientNick(int client_fd)
+{
+	try {
+		Client &client = getClient(client_fd);
+		return client._nick;
+	} catch (...) {
+		return "Unknown";
+	}
+}
+
+bool Server::isClientInChannel(int client_fd, const std::string &channel)
+{
+	try {
+		std::string channelName = channel;
+		Channel &ch = getChannel(channelName);
+		return ch.isMember(client_fd);
+	} catch (...) {
+		return false;
+	}
+}
+
+int Server::getClientFdByNick(const std::string &nick)
+{
+	std::map<int, Client>::iterator it = _clients.begin();
+	for (; it != _clients.end(); ++it) {
+		if (it->second._nick == nick) {
+			return it->first;
+		}
+	}
+	return -1;
 }

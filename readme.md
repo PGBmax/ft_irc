@@ -178,5 +178,110 @@ Il ne contient **aucune fonctionnalité bonus ou non demandée** (comme l’inte
 
 ---
 
+# Notes de Développement Bot & Connect4
+
+### Système de Bot de Base
+- ✅ Structure de classe Bot avec intégration IRC basique
+- ✅ Parsing des commandes bot (CONNECT4, PLAY)
+- ✅ Stockage de parties basique avec std::map
+- ✅ Communication serveur via sendToChannel()
+
+### Logique du Jeu Connect4
+- ✅ Initialisation plateau 6x7
+- ✅ Placement de pièces avec simulation de gravité
+- ✅ Détection de victoire (horizontal, vertical, diagonal)
+- ✅ Gestion d'état de jeu basique
+- ✅ Affichage du plateau dans le canal IRC
+
+### IA du Bot
+- ✅ Sélection aléatoire de coups parmi les colonnes valides
+- ✅ Validation basique des colonnes
+- ✅ Alternance des tours entre humain et bot
+
+### Déroulement de Partie
+- ✅ Démarrer partie avec commande "CONNECT4" (bot seulement)
+- ✅ Jouer coups avec commande "PLAY <colonne>"
+- ✅ Détection basique victoire/défaite et nettoyage
+- ✅ Gestion des tours
+
+## 🚧 TODO - Prochaines Sessions de Développement
+
+### IA Avancée du Bot
+- [ ] Implémenter détection de coup gagnant
+- [ ] Ajouter blocage des coups gagnants adverses
+- [ ] Meilleur positionnement stratégique
+- [ ] Niveaux de difficulté
+
+### Joueur vs Joueur
+- [ ] Système de défi avec "CONNECT4 <joueur>"
+- [ ] Accepter défis avec commande "ACCEPT"
+- [ ] État de jeu approprié : WAITING_FOR_ACCEPT
+- [ ] Timeouts des défis
+
+### Gestion des Parties
+- [ ] Détection d'égalité quand plateau plein
+- [ ] Fonctionnalité d'abandon
+- [ ] Statistiques et comptage des coups
+- [ ] Plusieurs parties simultanées par canal
+
+### Système de Timeouts
+- [ ] Suivi d'activité avec timestamps
+- [ ] Nettoyage automatique après inactivité
+- [ ] Expiration des défis (2 min)
+- [ ] Timeout de partie (5 min)
+
+### Gestion d'Erreurs & Validation
+- [ ] Meilleure validation des entrées
+- [ ] Vérification d'appartenance au canal
+- [ ] Empêcher plusieurs parties par joueur
+- [ ] Gestion gracieuse des déconnexions
+
+### Fonctionnalités Avancées
+- [ ] Support messages privés pour bot
+- [ ] Replay/historique des parties
+- [ ] Mode spectateur
+- [ ] Tournois à élimination
+
+## 🔧 Dette Technique
+
+### Organisation du Code
+- [ ] Diviser Bot.cpp en fichiers plus petits
+- [ ] Ajouter codes d'erreur/enum appropriés
+- [ ] Meilleure const correctness
+- [ ] Ajouter tests unitaires
+
+### Performance
+- [ ] Optimiser algorithme de détection de victoire
+- [ ] Meilleure gestion mémoire pour nombreuses parties
+- [ ] Optimisations de pool de connexions
+
+### Documentation
+- [ ] Ajouter documentation des fonctions
+- [ ] Compléter exemples README
+- [ ] Ajouter guides de débogage
+
+## 🐛 Problèmes Connus
+
+1. Pas de détection d'égalité - les parties continuent même quand le plateau est plein
+2. Pas d'implémentation de commande d'abandon
+3. Limité aux parties contre bot seulement (pas de JcJ)
+4. Pas de gestion des timeouts
+5. Messages d'erreur basiques seulement
+6. Pas de statistiques de parties persistantes
+
+## 📝 Journal de Développement
+
+- Architecture bot basique implémentée
+- Logique Connect4 fonctionnelle
+- IA simple avec coups aléatoires
+- Intégration IRC fonctionnelle
+- Parties bot vs humain fonctionnelles
+- Détection de victoire implémentée
+- Affichage du plateau fonctionnel
+
+**Prochaine priorité** : Implémenter détection d'égalité et améliorer stratégie IA
+
+---
+
 Bonne construction ! Tu peux cocher chaque étape à mesure que tu avances. 💻
 

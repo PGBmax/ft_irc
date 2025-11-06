@@ -25,7 +25,6 @@ bool Channel::isMember(int fd) const
 
 bool Channel::isOperator(int fd) const
 {
-	//s'il n;y a qu'un seul membre et que c'est bien lui
 	if (_members.size() == 1 && _members.count(fd))
 		return true;
 	return _operators.count(fd) > 0;

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
+/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/05 16:27:40 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/06 22:48:26 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,7 @@
 
 #include "Client.hpp"
 #include "Channel.hpp"
+#include "Bot.hpp"
 #include <string>
 #include <poll.h>
 #include <vector>
@@ -23,7 +24,7 @@ typedef struct s_message
 {
 	std::string command; 
 	std::vector<std::string> params;
-} t_message;
+} 	t_message;
 
 class Server
 {
@@ -49,8 +50,16 @@ class Server
 		Client &getClient(int fd);
 		Client &getClientByNick(std::string &nick);
 		Channel &getChannel(std::string &name);
+		Bot* _bot;
 		void handleLine(int fd, const std::string &line);
 		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
+		
+	public:
+		void sendToChannel(const std::string &channel, const std::string &message);
+		void sendToClient(int client_fd, const std::string &message);
+		std::string getClientNick(int client_fd);
+		bool isClientInChannel(int client_fd, const std::string &channel);
+		int getClientFdByNick(const std::string &nick);
 
 		void ping(t_message &message, Client &client);
 		void pass(t_message &message, Client &client);

@@ -17,23 +17,3 @@ Client::Client(int fd) : _fd(fd), _isPasswordValid(false), _registered(false)
 {
     std::cout << "Client " << fd << " constructed" << std::endl;
 }
-
-// int Client::getFd() const
-// {
-//     return (this->_fd);
-// }
-
-// void Client::setFd(int fd)
-// {
-//     this->_fd = fd;
-// }
-
-// void Client::setIp(const std::string& ip)
-// {
-//     this->_ip = ip; 
-// }
-
-// std::string Client::getIp() const
-// {
-//     return (this->_ip);
-// }
