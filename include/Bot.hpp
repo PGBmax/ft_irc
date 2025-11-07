@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/06 22:50:41 by pboucher          #+#    #+#             */
-/*   Updated: 2025/11/06 23:42:54 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/07 16:22:00 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,6 +30,7 @@ class Bot
 		
 		bool startConnect4(struct s_message &message, Client &client, const std::string &channel);
 		bool playConnect4(struct s_message &message, Client &client, const std::string &channel);
+		bool forfeitConnect4(Client &client, const std::string &channel);
 		
 	private:
 		Server* _server;
@@ -42,6 +43,7 @@ class Bot
 		int botMove(const Connect4 &game);
 		
 		std::string generateGameId(const std::string &channel, int player1_fd, int player2_fd);
+		std::string getGameId(const std::string &channel, int player1_fd, int player2_fd);
 		
 		void sendToChannel(const std::string &channel, const std::string &message);
 		std::string getClientNick(int client_fd);

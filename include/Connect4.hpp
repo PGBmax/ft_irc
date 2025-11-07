@@ -26,24 +26,24 @@ class Connect4
 		Connect4();
 		~Connect4();
 		
-		int getBoard(int row, int col) const;
-		void setBoard(int row, int col, int value);
+		int		getBoard(int row, int col) const;
+		void	setBoard(int row, int col, int value);
 		
-		int getPlayer1Fd() const;
-		void setPlayer1Fd(int fd);
-		int getPlayer2Fd() const;
-		void setPlayer2Fd(int fd);
-		int getCurrentPlayer() const;
-		void setCurrentPlayer(int player);
+		int		getPlayer1Fd() const;
+		int		getPlayer2Fd() const;
+		int		getCurrentPlayer() const;
+		void	setPlayer1Fd(int fd);
+		void	setPlayer2Fd(int fd);
+		void	setCurrentPlayer(int player);
 		
-		const std::string& getChannel() const;
-		void setChannel(const std::string& channel);
+		const 	std::string& getChannel() const;
+		void	setChannel(const std::string& channel);
 		
-		GameState getState() const;
-		void setState(GameState state);
+		GameState 	getState() const;
+		void		setState(GameState state);
 
-		bool isVsBot() const;
-		void setVsBot(bool vs_bot);
+		bool 	isVsBot() const;
+		void	setVsBot(bool vs_bot);
 
 	private:
 		int _board[6][7];

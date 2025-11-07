@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/06 22:41:28 by pboucher          #+#    #+#             */
-/*   Updated: 2025/11/06 23:41:44 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/07 17:36:51 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,7 +29,7 @@ Bot::Bot(Server* server) : _server(server) {}
 
 Bot::~Bot() {}
 
-bool Bot::handleBotCommand(t_message &message, Client &client, const std::string &channel)
+bool	Bot::handleBotCommand(t_message &message, Client &client, const std::string &channel)
 {
 	if (message.params.size() < 2)
 		return false;
@@ -46,14 +46,16 @@ bool Bot::handleBotCommand(t_message &message, Client &client, const std::string
 		return startConnect4(message, client, channel);
 	else if (command == "PLAY")
 		return playConnect4(message, client, channel);
-	
+	else if (command == "FORFEIT")
+		return forfeitConnect4(client, channel);
 	return false;
 }
 
-bool Bot::startConnect4(t_message &message, Client &client, const std::string &channel)
+bool	Bot::startConnect4(t_message &message, Client &client, const std::string &channel)
 {
 	std::istringstream iss(message.params[1]);
-	std::string command, targetPlayer;
+	std::string command;
+	std::string targetPlayer;
 	iss >> command >> targetPlayer;
 	
 	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
@@ -110,11 +112,11 @@ bool Bot::startConnect4(t_message &message, Client &client, const std::string &c
 	else
 	{
 		sendToChannel(channel, "[ERROR] Player vs player not implemented yet! Use: CONNECT4 (without target)");
-		return true;
+		return false;
 	}
 }
 
-bool Bot::playConnect4(t_message &message, Client &client, const std::string &channel)
+bool	Bot::playConnect4(t_message &message, Client &client, const std::string &channel)
 {
 	std::istringstream iss(message.params[1]);
 	std::string command;
@@ -123,15 +125,14 @@ bool Bot::playConnect4(t_message &message, Client &client, const std::string &ch
 	
 	if (column < 1 || column > 7)
 	{
-		sendToChannel(channel, "[ERROR] Invalid column! Use 1-7.");
-		return true;
+		sendToChannel(channel, "[ERROR] " + getClientNick(client._fd) + ": Invalid column! Use 1-7.");
+		return false;
 	}
 	
 	column--;
 	
 	Connect4 *activeGame = NULL;
 	std::string activeGameId;
-	
 	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
 	{
 		if (it->second.getChannel() == channel && 
@@ -146,9 +147,10 @@ bool Bot::playConnect4(t_message &message, Client &client, const std::string &ch
 	
 	if (!activeGame)
 	{
-		sendToChannel(channel, "[ERROR] You're not in an active game!");
-		return true;
+		sendToChannel(channel, "[ERROR] " + getClientNick(client._fd) + ": You're not in an active game!");
+		return false;
 	}
+	
 	
 	bool isPlayerTurn = false;
 	if (activeGame->getCurrentPlayer() == 1 && activeGame->getPlayer1Fd() == client._fd)
@@ -159,13 +161,13 @@ bool Bot::playConnect4(t_message &message, Client &client, const std::string &ch
 	if (!isPlayerTurn)
 	{
 		sendToChannel(channel, "[ERROR] It's not your turn!");
-		return true;
+		return false;
 	}
 	
 	if (!dropPiece(*activeGame, column))
 	{
 		sendToChannel(channel, "[ERROR] Column " + intToString(column + 1) + " is full!");
-		return true;
+		return false;
 	}
 
 	std::string playerSymbol = (activeGame->getCurrentPlayer() == 1) ? "[RED]" : "[YELLOW]";
@@ -213,7 +215,43 @@ bool Bot::playConnect4(t_message &message, Client &client, const std::string &ch
 	return true;
 }
 
-bool Bot::dropPiece(Connect4 &game, int column)
+bool	Bot::forfeitConnect4(Client &client, const std::string &channel)
+{
+	Connect4 *activeGame = NULL;
+	std::string activeGameId;
+	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
+	{
+		if (it->second.getChannel() == channel && 
+			it->second.getState() == IN_GAME &&
+			(it->second.getPlayer1Fd() == client._fd || it->second.getPlayer2Fd() == client._fd))
+			{
+			activeGame = &it->second;
+			activeGameId = it->first;
+			break;
+		}
+	}
+	
+	if (!activeGame)
+	{
+		sendToChannel(channel, "[ERROR] " + getClientNick(client._fd) + ": You're not in an active game!");
+		return false;
+	}
+	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
+	{
+		if (it->second.getChannel() == channel && 
+			(it->second.getPlayer1Fd() == client._fd || it->second.getPlayer2Fd() == client._fd) &&
+			it->second.getState() != GAME_OVER)
+		{
+			_games.erase(activeGameId);
+			sendToChannel(channel, "[RED] " + getClientNick(client._fd) + " has forfeit the game !");
+			return true;
+		}
+	}
+	sendToChannel(channel, "[ERROR] " + getClientNick(client._fd) + " is not in the game !");
+	return false;
+}
+
+bool	Bot::dropPiece(Connect4 &game, int column)
 {
 	if (column < 0 || column >= 7)
 		return false;
@@ -230,7 +268,7 @@ bool Bot::dropPiece(Connect4 &game, int column)
 	return false;
 }
 
-bool Bot::checkWin(const Connect4 &game, int player)
+bool	Bot::checkWin(const Connect4 &game, int player)
 {
 	for (int row = 0; row < 6; row++)
 	{
@@ -283,7 +321,7 @@ bool Bot::checkWin(const Connect4 &game, int player)
 	return false;
 }
 
-void Bot::displayBoard(const Connect4 &game, const std::string &channel)
+void	Bot::displayBoard(const Connect4 &game, const std::string &channel)
 {
 	sendToChannel(channel, "  1 2 3 4 5 6 7 ");
 	sendToChannel(channel, "+---------------+");
@@ -295,9 +333,9 @@ void Bot::displayBoard(const Connect4 &game, const std::string &channel)
 		{
 			board_row += " ";
 			if (game.getBoard(row, col) == 1)
-				board_row += "R";
+				board_row += "x";
 			else if (game.getBoard(row, col) == 2)
-				board_row += "Y";
+				board_row += "o";
 			else
 				board_row += ".";
 		}
@@ -308,7 +346,7 @@ void Bot::displayBoard(const Connect4 &game, const std::string &channel)
 	sendToChannel(channel, "+---------------+");
 }
 
-int Bot::botMove(const Connect4 &game)
+int	Bot::botMove(const Connect4 &game)
 {
 	std::vector<int> validColumns;
 	for (int col = 0; col < 7; col++)
@@ -323,20 +361,20 @@ int Bot::botMove(const Connect4 &game)
 	return 0;
 }
 
-std::string Bot::generateGameId(const std::string &channel, int player1_fd, int player2_fd)
+std::string	Bot::generateGameId(const std::string &channel, int player1_fd, int player2_fd)
 {
 	std::ostringstream oss;
 	oss << channel << "_" << player1_fd << "_" << player2_fd << "_" << time(NULL);
 	return oss.str();
 }
 
-void Bot::sendToChannel(const std::string &channel, const std::string &message)
+void	Bot::sendToChannel(const std::string &channel, const std::string &message)
 {
 	if (_server)
 		_server->sendToChannel(channel, message);
 }
 
-std::string Bot::getClientNick(int client_fd)
+std::string	Bot::getClientNick(int client_fd)
 {
 	if (_server)
 		return _server->getClientNick(client_fd);
