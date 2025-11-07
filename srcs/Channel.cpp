@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:55:23 by rraumain          #+#    #+#             */
-/*   Updated: 2025/11/05 09:42:48 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/06 09:14:38 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,7 +15,7 @@
 
 Channel::Channel(const std::string &name) : _name(name), _inviteOnly(false), _topicOperatorOnly(false), _key(""), _userLimit(-1)
 {
-	std::cout << "Chennel " << name << " constructed" << std::endl;
+	std::cout << "Channel " << name << " constructed" << std::endl;
 }
 
 bool Channel::isMember(int fd) const

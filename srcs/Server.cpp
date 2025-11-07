@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
+/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/05 18:12:51 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/07 17:05:31 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -640,7 +640,8 @@ bool Server::invite(t_message &message, Client &client)
 void Server::setMode(Channel &channel, Client &client, t_message &message)
 {
 	std::string modeStr = message.params[1]; 
-	bool addMode;
+	//bool addMode;
+	bool addMode = true;
 	size_t paramIndex = 2; // index de message.params
 	
 	//MODE #channel +itklo 1234 5 Alice
@@ -650,87 +651,86 @@ void Server::setMode(Channel &channel, Client &client, t_message &message)
 	//message.params[3] = "5"
 	//message.params[4] = "Alice"
 	
-	if (modeStr[0] == '+')
-		addMode = true;
-	else
-		addMode = false;
 		
-	for (size_t j = 1; j < modeStr.size(); j++)
+	for (size_t j = 0; j < modeStr.size(); j++)
 	{
-		if (modeStr[j] == 'i')
-			channel._inviteOnly = addMode;
-		else if (modeStr[j] == 't')
-			channel._topicOperatorOnly = addMode;
-		else if (modeStr[j] == 'k')
-		{
-			if (addMode)
-			{
-				if (paramIndex < message.params.size())
-				{
-					channel._key = message.params[paramIndex];
-					paramIndex++;
-				}
-				else
-					sendClient(461, client, "Not enough parameters");
-			//MODE #test +kl 1234 5  --> A GERER 
-			}
-			else
-				channel._key = "";
-		}
-		else if (modeStr[j] == 'l')
-		{
-			if (addMode)
-			{
-				if (paramIndex < message.params.size())
-				{
-					std::stringstream ss(message.params[paramIndex]);
-					int limit;
-					ss >> limit;
-					channel._userLimit = limit;
-					paramIndex++;
-				}
-				else
-					sendClient(461, client, "Not enough parameters");
-			}
-			else
-				channel._userLimit = -1;	
-		}
-		else if (modeStr[j] == 'o')
-		{
-			if (paramIndex < message.params.size())
-			{				
-				std::string nickToModify = message.params[paramIndex];
-				paramIndex++;
-				try
-				{
-					Client &clientToModify = getClientByNick(nickToModify);
-					if (!channel.isMember(clientToModify._fd))
-					{
-						sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
-						return;
-					}
-        			if (addMode)
-            			channel.addOperator(clientToModify._fd); // +o lili 
-        			else
-            			channel.removeOperator(clientToModify._fd); // -o lili
-				}
-				catch (const std::exception &e)
-				{
-					sendClient(401, client, nickToModify + " :No such nick");
-					return;
-				}	
-			}
-			else
-			{
-				sendClient(461, client, "Not enough parameters");
-			}
-		}
+		if (modeStr[j] == '+')
+			addMode = true;	
+		else if (modeStr[j] == '-')
+			addMode = false;
 		else
-			sendClient(472, client, "Unknown mode char");
+		{
+			if (modeStr[j] == 'i')
+				channel._inviteOnly = addMode;
+			else if (modeStr[j] == 't')
+				channel._topicOperatorOnly = addMode;
+			else if (modeStr[j] == 'k')
+			{
+				if (addMode)
+				{
+					if (paramIndex < message.params.size())
+					{
+						channel._key = message.params[paramIndex];
+						paramIndex++;
+					}
+					else
+						sendClient(461, client, "Not enough parameters");
+				//MODE #test +kl 1234 5  --> A GERER 
+				}
+				else
+					channel._key = "";
+			}
+			else if (modeStr[j] == 'l')
+			{
+				if (addMode)
+				{
+					if (paramIndex < message.params.size())
+					{
+						std::stringstream ss(message.params[paramIndex]);
+						int limit;
+						ss >> limit;
+						channel._userLimit = limit;
+						paramIndex++;
+					}
+					else
+						sendClient(461, client, "Not enough parameters");
+				}
+				else
+					channel._userLimit = -1;	
+			}
+			else if (modeStr[j] == 'o')
+			{
+				if (paramIndex < message.params.size())
+				{				
+					std::string nickToModify = message.params[paramIndex];
+					paramIndex++;
+					try
+					{
+						Client &clientToModify = getClientByNick(nickToModify);
+						if (!channel.isMember(clientToModify._fd))
+						{
+							sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
+							return;
+						}
+        				if (addMode)
+            				channel.addOperator(clientToModify._fd); // +o lili 
+        				else
+            				channel.removeOperator(clientToModify._fd); // -o lili
+					}
+					catch (const std::exception &e)
+					{
+						sendClient(401, client, nickToModify + " :No such nick");
+						return;
+					}	
+				}
+				else
+					sendClient(461, client, "Not enough parameters");
+			}
+			else
+				sendClient(472, client, "Unknown mode char");
+		}
 	}
 }
-
-
 
 
 void Server::mode(t_message &message, Client &client)
@@ -786,7 +786,6 @@ void Server::mode(t_message &message, Client &client)
 		if (!targetNick.empty())
 			reply += " " + targetNick;
 		sendInChannel(channel, -1, reply);
-		// announceModeChange(channel, client, message);
 	}
 }
 
@@ -879,4 +878,9 @@ Channel &Server::getChannel(std::string &name)
 	if (it == _channels.end())
 		throw std::runtime_error("channel not found");
 	return (it->second);
+<<<<<<< HEAD
 }
+=======
+}
+
+>>>>>>> 55ecd82 (bug)
