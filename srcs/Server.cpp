@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/07 17:09:36 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/08 18:35:52 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -236,7 +236,7 @@ void Server::readFromClient(int fd)
 
 void Server::sendInChannel(Channel &channel, int senderFd, const std::string &line)
 {	
-	std::set<int>::const_iterator it = channel._members.begin();
+	std::vector<int>::const_iterator it = channel._members.begin();
 	for (; it != channel._members.end(); ++it)
 	{
 		if (*it == senderFd)
@@ -246,6 +246,7 @@ void Server::sendInChannel(Channel &channel, int senderFd, const std::string &li
 		sendMessage(client, line, _pfds[getPID(*it)]);
 	}
 }
+
 
 void Server::ping(t_message &message, Client &client)
 {
@@ -332,7 +333,6 @@ bool Server::join(t_message &message, Client &client)
 		return false;
 	}
 
-	
 	if (_channels.find(name) == _channels.end())
 		_channels.insert(std::map<std::string, Channel>::value_type(name, Channel(name)));
 	Channel &channel = getChannel(name);
@@ -355,8 +355,10 @@ bool Server::join(t_message &message, Client &client)
 		return false;
 	}
 
-	channel._members.insert(client._fd);
-
+	std::vector<int>::iterator it = find(channel._members.begin(), channel._members.end(), client._fd);
+	if (it == channel._members.end())
+		channel._members.push_back(client._fd);
+	
 	if (channel._members.size() == 1)
 		channel._operators.insert(client._fd);
 
@@ -369,10 +371,10 @@ bool Server::join(t_message &message, Client &client)
 		sendClient(332, client, name + " " + channel._topic);
 
 	std::string nickList;
-	std::set<int>::iterator it = channel._members.begin();
-	for (; it != channel._members.end(); ++it)
+	std::vector<int>::iterator iter = channel._members.begin();
+	for (; iter != channel._members.end(); ++iter)
 	{
-		Client &client = getClient(*it);
+		Client &client = getClient(*iter);
 		nickList += client._nick + " ";
 	}
 	
@@ -380,6 +382,7 @@ bool Server::join(t_message &message, Client &client)
 	sendClient(366, client, name + " End of NAMES list");
 	return true;
 }
+
 
 bool Server::part(t_message &message, Client &client)
 {
@@ -408,13 +411,17 @@ bool Server::part(t_message &message, Client &client)
 	std::string line = client._nick + " PART " + name + " :" + reason;
 	sendInChannel(channel, -1, line);
 
-	channel._members.erase(client._fd);
+	std::vector<int>::iterator iter = find(channel._members.begin(), channel._members.end(), client._fd);
+	if (iter != channel._members.end())
+		channel._members.erase(iter);
 	channel._operators.erase(client._fd);
-
 	if (channel._members.empty())
 		_channels.erase(it);
+	else if (!channel._members.empty() && channel._operators.empty())
+		channel.addOperator(channel._members[0]);
 	return true;
 }
+
 
 bool Server::privmsg(t_message &message, Client &client)
 {
@@ -519,7 +526,10 @@ bool Server::kick(t_message &message, Client &client)
 	std::string kickMessage = ":" + client._nick + " KICK " + channelName + " " + targetNick + " :" + reason;
 	sendInChannel(channel, -1, kickMessage);
 
-	channel._members.erase(targetClient->_fd);
+	std::vector<int>::iterator iter = find(channel._members.begin(), channel._members.end(), targetClient->_fd);
+	if (iter != channel._members.end())
+		channel._members.erase(iter);
+		
 	channel._operators.erase(targetClient->_fd);
 	channel._invited.erase(targetClient->_fd);
 
@@ -528,6 +538,7 @@ bool Server::kick(t_message &message, Client &client)
 
 	return true;
 }
+
 
 bool Server::topic(t_message &message, Client &client)
 {
@@ -637,23 +648,12 @@ bool Server::invite(t_message &message, Client &client)
 	return true;
 }
 
-
-//void Server::setMode(Channel &channel, Client &client, t_message &message)
 bool Server::setMode(Channel &channel, Client &client, t_message &message)
 {
 	std::string modeStr = message.params[1]; 
-	//bool addMode;
 	bool addMode = true;
 	size_t paramIndex = 2; // index de message.params
 	
-	//MODE #channel +itklo 1234 5 Alice
-	//message.params[0] = "#channel"
-	//message.params[1] = modeStr = "+itklo"
-	//message.params[2] = "1234" // int paramIndex = 2
-	//message.params[3] = "5"
-	//message.params[4] = "Alice"
-	
-		
 	for (size_t j = 0; j < modeStr.size(); j++)
 	{
 		if (modeStr[j] == '+')
@@ -678,9 +678,8 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 					else
 					{
 						sendClient(461, client, "Not enough parameters");
-						return ;
+						return false;
 					}
-				//MODE #test +kl 1234 5  --> A GERER 
 				}
 				else
 					channel._key = "";
@@ -721,9 +720,9 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 							return false;
 						}
         				if (addMode)
-            				channel.addOperator(clientToModify._fd); // +o lili 
+            				channel.addOperator(clientToModify._fd); 
         				else
-            				channel.removeOperator(clientToModify._fd); // -o lili
+            				channel.removeOperator(clientToModify._fd);
 					}
 					catch (const std::exception &e)
 					{
@@ -750,25 +749,19 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 
 void Server::mode(t_message &message, Client &client)
 {
-	// cas ou cmd = MODE 
 	if (message.params.empty())
 		return sendClient(461, client, "Not enough parameters");
 	
-	// cas ou cmd = MODE #channelName
 	std::string name = message.params[0];
 
-	// est ce que le channel existe
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
 		return sendClient(403, client, "No such channel");
 	
-	// le channel existe : est ce que le demandeur est membre
 	Channel &channel = it->second;
 	if (!channel.isMember(client._fd))
 		return sendClient(442, client, "You're not on that channel");
 
-	// le demandeur est membre : quel est la commande exacte
-	// si cmd = MODE #channel alors tous les membres ont droit a cette cmd
 	if (message.params.size() == 1)
 	{
 		std::string modes = "+";
@@ -785,13 +778,9 @@ void Server::mode(t_message &message, Client &client)
 	}
 	else if (message.params.size() > 1)
 	{
-		// si cmd = MODE #channel +autre params
-		// on verifie si le demandeur n'est pas l'operateur
 		if (!channel.isOperator(client._fd))
 			return sendClient(482, client, "You're not channel operator");
-		// sinon si le demandeur est l'operateur
 		bool success = setMode(channel, client, message);
-		//Annoncer le changement a tous les membres
 		if (success)
 		{
 			std::string modeChange = message.params[1];
@@ -808,7 +797,6 @@ void Server::mode(t_message &message, Client &client)
 			return ;
 	}
 }
-
 
 
 void Server::handleLine(int fd, const std::string &line)
@@ -851,7 +839,7 @@ void Server::handleLine(int fd, const std::string &line)
 	
 	if (message.command == "MODE")
 		return mode(message, client);
-	}
+}
 
 void Server::closeClient(int fd)
 {
@@ -898,9 +886,4 @@ Channel &Server::getChannel(std::string &name)
 	if (it == _channels.end())
 		throw std::runtime_error("channel not found");
 	return (it->second);
-<<<<<<< HEAD
 }
-=======
-}
-
->>>>>>> 55ecd82 (bug)
