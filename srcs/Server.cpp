@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/06 23:43:28 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/08 15:47:32 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -111,7 +111,7 @@ Server::~Server()
 	delete _bot;
 	if (_listenFd != -1)
 		close(_listenFd);
-	std::cout << "Server destructed" << std::endl;
+	std::cout << "	Server Destructed" << std::endl;
 }
 
 void Server::setupListenSocket()
@@ -963,4 +963,9 @@ int Server::getClientFdByNick(const std::string &nick)
 		}
 	}
 	return -1;
+}
+
+const char* Server::SignalHandler::what() const throw()
+{
+	return (" Signal Detected ! Closing Server.\n");
 }

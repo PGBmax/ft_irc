@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/06 22:48:26 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/08 15:44:06 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,6 +33,9 @@ class Server
 		~Server();
 
 		void run();
+
+		class SignalHandler: public std::exception {
+			public: virtual const char* what() const throw(); };
 
 	private :
 		int								_port;

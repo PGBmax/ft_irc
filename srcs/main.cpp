@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   main.cpp                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
+/*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/18 13:50:38 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/03 11:13:48 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/08 15:53:56 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,14 @@
 #include "Decorator.hpp"
 #include <iostream>
 #include <cstdlib>
+#include <csignal>
+
+void signal_handler(int pid)
+{
+    if (pid == SIGINT || pid == SIGQUIT)
+        throw Server::SignalHandler();
+}
+
 
 int main(int ac, char **av)
 {
@@ -23,12 +31,14 @@ int main(int ac, char **av)
     }
     int port = std::atoi(av[1]);
     std::string password = av[2];
-
+    
     try {
         Server server(port, password);
+        signal(SIGINT, signal_handler);
+        signal(SIGQUIT, signal_handler);
         server.run();
     } catch (const std::exception &error) {
-        std::cerr << "Error: " << error.what() << std::endl;
+        std::cerr << RGB(255,0,0) << "Error: " << error.what() << CLR << std::endl;
         return 2;
     }
     return 0;
