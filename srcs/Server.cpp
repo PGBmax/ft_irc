@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 18:35:52 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/08 18:45:52 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -886,4 +886,9 @@ Channel &Server::getChannel(std::string &name)
 	if (it == _channels.end())
 		throw std::runtime_error("channel not found");
 	return (it->second);
+}
+
+const char* Server::SignalHandler::what() const throw()
+{
+	return (" Signal Detected ! Closing Server.\n");
 }

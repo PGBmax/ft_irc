@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 18:28:43 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/08 18:48:39 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,6 +32,11 @@ class Server
 		~Server();
 
 		void run();
+
+		class SignalHandler: public std::exception
+		{
+			public: virtual const char* what() const throw();
+		};
 
 	private :
 		int								_port;
