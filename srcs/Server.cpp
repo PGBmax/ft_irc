@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/10 03:32:20 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/10 15:40:29 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -872,14 +872,10 @@ void Server::closeClient(int fd)
 {
 	std::cout << "Client " << fd << " quit" << std::endl;
 
-	if (_bot) {
-		// TODO: implement bot cleanup when client disconnects
-		// _bot->onClientDisconnected(fd);
-	}
-
+	size_t pid = getPID(fd);
 	close(fd);
 	_clients.erase(fd);
-	_pfds.erase(_pfds.begin() + getPID(fd));
+	_pfds.erase(_pfds.begin() + pid);
 }
 
 size_t Server::getPID(int fd) const
