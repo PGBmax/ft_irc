@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/18 13:50:38 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 15:53:56 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/10 03:30:07 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,7 +21,6 @@ void signal_handler(int pid)
     if (pid == SIGINT || pid == SIGQUIT)
         throw Server::SignalHandler();
 }
-
 
 int main(int ac, char **av)
 {

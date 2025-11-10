@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 15:47:32 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/10 03:32:20 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -249,7 +249,7 @@ void Server::readFromClient(int fd)
 
 void Server::sendInChannel(Channel &channel, int senderFd, const std::string &line)
 {	
-	std::set<int>::const_iterator it = channel._members.begin();
+	std::vector<int>::const_iterator it = channel._members.begin();
 	for (; it != channel._members.end(); ++it)
 	{
 		if (*it == senderFd)
@@ -259,6 +259,7 @@ void Server::sendInChannel(Channel &channel, int senderFd, const std::string &li
 		sendMessage(client, line, _pfds[getPID(*it)]);
 	}
 }
+
 
 void Server::ping(t_message &message, Client &client)
 {
@@ -345,7 +346,6 @@ bool Server::join(t_message &message, Client &client)
 		return false;
 	}
 
-	
 	if (_channels.find(name) == _channels.end())
 		_channels.insert(std::map<std::string, Channel>::value_type(name, Channel(name)));
 	Channel &channel = getChannel(name);
@@ -368,8 +368,10 @@ bool Server::join(t_message &message, Client &client)
 		return false;
 	}
 
-	channel._members.insert(client._fd);
-
+	std::vector<int>::iterator it = find(channel._members.begin(), channel._members.end(), client._fd);
+	if (it == channel._members.end())
+		channel._members.push_back(client._fd);
+	
 	if (channel._members.size() == 1)
 		channel._operators.insert(client._fd);
 
@@ -382,10 +384,10 @@ bool Server::join(t_message &message, Client &client)
 		sendClient(332, client, name + " " + channel._topic);
 
 	std::string nickList;
-	std::set<int>::iterator it = channel._members.begin();
-	for (; it != channel._members.end(); ++it)
+	std::vector<int>::iterator iter = channel._members.begin();
+	for (; iter != channel._members.end(); ++iter)
 	{
-		Client &client = getClient(*it);
+		Client &client = getClient(*iter);
 		nickList += client._nick + " ";
 	}
 	
@@ -393,6 +395,7 @@ bool Server::join(t_message &message, Client &client)
 	sendClient(366, client, name + " End of NAMES list");
 	return true;
 }
+
 
 bool Server::part(t_message &message, Client &client)
 {
@@ -421,7 +424,9 @@ bool Server::part(t_message &message, Client &client)
 	std::string line = client._nick + " PART " + name + " :" + reason;
 	sendInChannel(channel, -1, line);
 
-	channel._members.erase(client._fd);
+	std::vector<int>::iterator iter = find(channel._members.begin(), channel._members.end(), client._fd);
+	if (iter != channel._members.end())
+		channel._members.erase(iter);
 	channel._operators.erase(client._fd);
 
 	if (_bot) {
@@ -431,8 +436,11 @@ bool Server::part(t_message &message, Client &client)
 
 	if (channel._members.empty())
 		_channels.erase(it);
+	else if (!channel._members.empty() && channel._operators.empty())
+		channel.addOperator(channel._members[0]);
 	return true;
 }
+
 
 bool Server::privmsg(t_message &message, Client &client)
 {
@@ -545,7 +553,10 @@ bool Server::kick(t_message &message, Client &client)
 	std::string kickMessage = ":" + client._nick + " KICK " + channelName + " " + targetNick + " :" + reason;
 	sendInChannel(channel, -1, kickMessage);
 
-	channel._members.erase(targetClient->_fd);
+	std::vector<int>::iterator iter = find(channel._members.begin(), channel._members.end(), targetClient->_fd);
+	if (iter != channel._members.end())
+		channel._members.erase(iter);
+		
 	channel._operators.erase(targetClient->_fd);
 	channel._invited.erase(targetClient->_fd);
 
@@ -554,6 +565,7 @@ bool Server::kick(t_message &message, Client &client)
 
 	return true;
 }
+
 
 bool Server::topic(t_message &message, Client &client)
 {
@@ -663,123 +675,120 @@ bool Server::invite(t_message &message, Client &client)
 	return true;
 }
 
-void Server::setMode(Channel &channel, Client &client, t_message &message)
+bool Server::setMode(Channel &channel, Client &client, t_message &message)
 {
 	std::string modeStr = message.params[1]; 
-	bool addMode;
-	size_t paramIndex = 2;
+	bool addMode = true;
+	size_t paramIndex = 2; // index de message.params
 	
-	//MODE #channel +itklo 1234 5 Alice
-	//message.params[0] = "#channel"
-	//message.params[1] = modeStr = "+itklo"
-	//message.params[2] = "1234" // int paramIndex = 2
-	//message.params[3] = "5"
-	//message.params[4] = "Alice"
-	
-	if (modeStr[0] == '+')
-		addMode = true;
-	else
-		addMode = false;
-		
-	for (size_t j = 1; j < modeStr.size(); j++)
+	for (size_t j = 0; j < modeStr.size(); j++)
 	{
-		if (modeStr[j] == 'i')
-			channel._inviteOnly = addMode;
-		else if (modeStr[j] == 't')
-			channel._topicOperatorOnly = addMode;
-		else if (modeStr[j] == 'k')
-		{
-			if (addMode)
-			{
-				if (paramIndex < message.params.size())
-				{
-					channel._key = message.params[paramIndex];
-					paramIndex++;
-				}
-				else
-					sendClient(461, client, "Not enough parameters");
-			//MODE #test +kl 1234 5  --> A GERER 
-			}
-			else
-				channel._key = "";
-		}
-		else if (modeStr[j] == 'l')
-		{
-			if (addMode)
-			{
-				if (paramIndex < message.params.size())
-				{
-					std::stringstream ss(message.params[paramIndex]);
-					int limit;
-					ss >> limit;
-					channel._userLimit = limit;
-					paramIndex++;
-				}
-				else
-					sendClient(461, client, "Not enough parameters");
-			}
-			else
-				channel._userLimit = -1;	
-		}
-		else if (modeStr[j] == 'o')
-		{
-			if (paramIndex < message.params.size())
-			{				
-				std::string nickToModify = message.params[paramIndex];
-				paramIndex++;
-				try
-				{
-					Client &clientToModify = getClientByNick(nickToModify);
-					if (!channel.isMember(clientToModify._fd))
-					{
-						sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
-						return;
-					}
-        			if (addMode)
-            			channel.addOperator(clientToModify._fd);
-        			else
-            			channel.removeOperator(clientToModify._fd);
-				}
-				catch (const std::exception &e)
-				{
-					sendClient(401, client, nickToModify + " :No such nick");
-					return;
-				}	
-			}
-			else
-			{
-				sendClient(461, client, "Not enough parameters");
-			}
-		}
+		if (modeStr[j] == '+')
+			addMode = true;	
+		else if (modeStr[j] == '-')
+			addMode = false;
 		else
-			sendClient(472, client, "Unknown mode char");
+		{
+			if (modeStr[j] == 'i')
+				channel._inviteOnly = addMode;
+			else if (modeStr[j] == 't')
+				channel._topicOperatorOnly = addMode;
+			else if (modeStr[j] == 'k')
+			{
+				if (addMode)
+				{
+					if (paramIndex < message.params.size())
+					{
+						channel._key = message.params[paramIndex];
+						paramIndex++;
+					}
+					else
+					{
+						sendClient(461, client, "Not enough parameters");
+						return false;
+					}
+				}
+				else
+					channel._key = "";
+			}
+			else if (modeStr[j] == 'l')
+			{
+				if (addMode)
+				{
+					if (paramIndex < message.params.size())
+					{
+						std::stringstream ss(message.params[paramIndex]);
+						int limit;
+						ss >> limit;
+						channel._userLimit = limit;
+						paramIndex++;
+					}
+					else
+					{
+						sendClient(461, client, "Not enough parameters");
+						return false;
+					}
+				}
+				else
+					channel._userLimit = -1;	
+			}
+			else if (modeStr[j] == 'o')
+			{
+				if (paramIndex < message.params.size())
+				{				
+					std::string nickToModify = message.params[paramIndex];
+					paramIndex++;
+					try
+					{
+						Client &clientToModify = getClientByNick(nickToModify);
+						if (!channel.isMember(clientToModify._fd))
+						{
+							sendClient(441, client, nickToModify + " " + channel._name + " :They aren't on that channel");
+							return false;
+						}
+        				if (addMode)
+            				channel.addOperator(clientToModify._fd); 
+        				else
+            				channel.removeOperator(clientToModify._fd);
+					}
+					catch (const std::exception &e)
+					{
+						sendClient(401, client, nickToModify + " :No such nick");
+						return false;
+					}	
+				}
+				else
+				{
+					sendClient(461, client, "Not enough parameters");
+					return false;
+				}
+			}
+			else
+			{
+				sendClient(472, client, "Unknown mode char");
+				return false;
+			}
+		}
 	}
+	return true;
 }
-
-
 
 
 void Server::mode(t_message &message, Client &client)
 {
-	// cas ou cmd = MODE 
 	if (message.params.empty())
 		return sendClient(461, client, "Not enough parameters");
 	
-	// cas ou cmd = MODE #channelName
 	std::string name = message.params[0];
 
-	// est ce que le channel existe
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
 		return sendClient(403, client, "No such channel");
 	
-	// le channel existe : est ce que le demandeur est membre
 	Channel &channel = it->second;
 	if (!channel.isMember(client._fd))
 		return sendClient(442, client, "You're not on that channel");
 
-	// le demandeur est membre : quel est la commande exacte
-	// si cmd = MODE #channel alors tous les membres ont droit a cette cmd
 	if (message.params.size() == 1)
 	{
 		std::string modes = "+";
@@ -796,26 +805,25 @@ void Server::mode(t_message &message, Client &client)
 	}
 	else if (message.params.size() > 1)
 	{
-		// si cmd = MODE #channel +autre params
-		// on verifie si le demandeur n'est pas l'operateur
 		if (!channel.isOperator(client._fd))
 			return sendClient(482, client, "You're not channel operator");
-		// sinon si le demandeur est l'operateur
-		setMode(channel, client, message); 
-		//Annoncer le changement a tous les membres
-		std::string modeChange = message.params[1];
-		std::string targetNick;
-		if (message.params.size() > 2)
-			targetNick = message.params[2];
+		bool success = setMode(channel, client, message);
+		if (success)
+		{
+			std::string modeChange = message.params[1];
+			std::string target;
+			if(message.params.size() > 2)
+				target = message.params[2];
 
-		std::string reply = client._nick + ": MODE " + channel._name + " " + modeChange;
-		if (!targetNick.empty())
-			reply += " " + targetNick;
-		sendInChannel(channel, -1, reply);
-		// announceModeChange(channel, client, message);
+			std::string reply = client._nick + ": MODE " + channel._name + " " + modeChange;
+			if (!target.empty())
+				reply += " " + target;
+			sendInChannel(channel, -1, reply);
+		}
+		else
+			return ;
 	}
 }
-
 
 
 void Server::handleLine(int fd, const std::string &line)
@@ -858,7 +866,7 @@ void Server::handleLine(int fd, const std::string &line)
 	
 	if (message.command == "MODE")
 		return mode(message, client);
-	}
+}
 
 void Server::closeClient(int fd)
 {

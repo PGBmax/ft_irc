@@ -6,12 +6,13 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/10/25 17:55:23 by rraumain          #+#    #+#             */
-/*   Updated: 2025/11/07 17:28:54 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/10 03:29:56 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Channel.hpp"
 #include <iostream>
+#include <algorithm>
 
 Channel::Channel(const std::string &name) : _name(name), _inviteOnly(false), _topicOperatorOnly(false), _key(""), _userLimit(-1)
 {
@@ -20,13 +21,17 @@ Channel::Channel(const std::string &name) : _name(name), _inviteOnly(false), _to
 
 bool Channel::isMember(int fd) const
 {
-	return _members.count(fd) > 0;
+	if (std::find(_members.begin(), _members.end(), fd) != _members.end())
+		return true;
+	return false;
 }
 
 bool Channel::isOperator(int fd) const
 {
-	if (_members.size() == 1 && _members.count(fd))
+	if (_members.size() == 1 && _members[0] == fd)
 		return true;
+	if (std::find(_members.begin(), _members.end(), fd) == _members.end())
+		return false;
 	return _operators.count(fd) > 0;
 }
 

@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 15:44:06 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/10 03:29:34 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -34,8 +34,10 @@ class Server
 
 		void run();
 
-		class SignalHandler: public std::exception {
-			public: virtual const char* what() const throw(); };
+		class SignalHandler: public std::exception
+		{
+			public: virtual const char* what() const throw();
+		};
 
 	private :
 		int								_port;
@@ -73,7 +75,7 @@ class Server
 		bool part(t_message &message, Client &client);
 		bool privmsg(t_message &message, Client &client);
 		void mode(t_message &message, Client &client);
-		void setMode(Channel &channel, Client &client, t_message &message);
+		bool setMode(Channel &channel, Client &client, t_message &message);
 		bool kick(t_message &message, Client &client);
 		bool topic(t_message &message, Client &client);
 		bool invite(t_message &message, Client &client);
