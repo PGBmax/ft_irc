@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/18 13:50:38 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 18:49:37 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/10 14:39:54 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,6 +33,7 @@ int main(int ac, char **av)
 
     try {
         Server server(port, password);
+        signal(SIGPIPE, SIG_IGN);
         signal(SIGINT, signal_handler);
         signal(SIGQUIT, signal_handler);
         server.run();
@@ -42,3 +43,9 @@ int main(int ac, char **av)
     }
     return 0;
 }
+
+// (optional) multiple nicknames in hexchat
+// /join #channel1,#channel2 has to create multiple channels
+// /join #channel1,#channel2 pass1,pass2 has to create and the password for channels
+// /join #channel NAMES LIST should be printed in the channel chat?
+// "/join 0" client should quit all the channels where is member

@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 18:45:52 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/12 11:23:38 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -316,72 +316,196 @@ void Server::userRegister(Client &client)
 	}
 }
 
-bool Server::join(t_message &message, Client &client)
+
+
+bool Server::join(t_message &message, Client &client) //good version
 {
-	if (message.params.empty())
-	{
-		sendClient(461, client, "Not enough parameters");
-		return false;
-	}
+    if (message.params.empty())
+    {
+        sendClient(461, client, "Not enough parameters");
+        return false;
+    }
 
-	std::string name = message.params[0];
-	std::string key = (message.params.size() > 1 ? message.params[1] : "");
-	
-	if (name.empty() || name[0] != '#')
-	{
-		sendClient(403, client, "Invalid channel name");
-		return false;
-	}
+    // Découper les channels
+    std::vector<std::string> channels; // #chan1,#chan2,#chan3
+    size_t start = 0;
+    std::string names = message.params[0]; // #chan1,#chan2,#chan3
+    size_t pos = names.find(',', start); // position du virgule
 
-	if (_channels.find(name) == _channels.end())
-		_channels.insert(std::map<std::string, Channel>::value_type(name, Channel(name)));
-	Channel &channel = getChannel(name);
-	
-	if (channel._inviteOnly && !channel._invited.count(client._fd))
-	{
-		sendClient(473, client, name + " Cannot join channel (+i)");
-		return false;
-	}
+    while (pos != std::string::npos)
+    {
+        channels.push_back(names.substr(start, pos - start)); //extrait #chan1
+        start = pos + 1;
+    }
+    channels.push_back(names.substr(start)); // extrait #chan3
 
-	if (!channel._key.empty() && channel._key != key)
-	{
-		sendClient(475, client, name + " Cannot join channel (+k)");
-		return false;
-	}
+    // Découper les clés s'il y a
+    std::vector<std::string> keys;
+    if (message.params.size() > 1) // si cle fournit
+    {
+        start = 0;
+        std::string keyStr = message.params[1]; //key1,key2,key3
+		pos = keyStr.find(',', start);
+        while (pos != std::string::npos)
+        {
+            keys.push_back(keyStr.substr(start, pos - start));
+            start = pos + 1;
+        }
+        keys.push_back(keyStr.substr(start));
+    }
 
-	if (channel._userLimit > 0 && static_cast<int>(channel._members.size()) >= channel._userLimit)
-	{
-		sendClient(471, client, name + " Cannot join channel (+l)");
-		return false;
-	}
+    // Si moins de clés que de channels, remplir avec ""
+    while (keys.size() < channels.size())
+        keys.push_back("");
 
-	std::vector<int>::iterator it = find(channel._members.begin(), channel._members.end(), client._fd);
-	if (it == channel._members.end())
-		channel._members.push_back(client._fd);
-	
-	if (channel._members.size() == 1)
-		channel._operators.insert(client._fd);
+    bool joinedAtLeastOne = false;
 
-	std::string line = ":" + client._nick + " JOIN " + name;
-	sendInChannel(channel, -1, line);
+    // Boucle sur chaque channel
+    for (size_t i = 0; i < channels.size(); ++i)
+    {
+        std::string name = channels[i];
+        std::string key = keys[i];
 
-	if (channel._topic.empty())
-		sendClient(331, client, name + " No topic is set");
-	else
-		sendClient(332, client, name + " " + channel._topic);
+        if (name.empty() || name[0] != '#')
+        {
+            sendClient(403, client, "Invalid channel name: " + name);
+            continue;
+        }
+		if (_channels.find(name) == _channels.end())
+		{
+    		Channel newChannel(name);
+    		if (!key.empty()) // si le client a fourni une clé, la définir pour ce channel
+        		newChannel._key = key;
+    		_channels.insert(std::map<std::string, Channel>::value_type(name, newChannel));
+		}
 
-	std::string nickList;
-	std::vector<int>::iterator iter = channel._members.begin();
-	for (; iter != channel._members.end(); ++iter)
-	{
-		Client &client = getClient(*iter);
-		nickList += client._nick + " ";
-	}
-	
-	sendClient(353, client, name + " NAMES LIST: " + nickList);
-	sendClient(366, client, name + " End of NAMES list");
-	return true;
+        Channel &channel = getChannel(name);
+		
+        if (channel._inviteOnly && !channel._invited.count(client._fd))
+        {
+            sendClient(473, client, name + " Cannot join channel (+i)");
+            continue;
+        }
+		
+  		if (!channel._key.empty() && key != channel._key)
+        {
+            sendClient(475, client, name + " Cannot join channel (+k)");
+            continue;
+        }
+		
+        if (channel._userLimit > 0 && static_cast<int>(channel._members.size()) >= channel._userLimit)
+        {
+            sendClient(471, client, name + " Cannot join channel (+l)");
+            continue;
+        }
+		
+		std::vector<int>::iterator it = std::find(channel._members.begin(), channel._members.end(), client._fd);
+		if (it != channel._members.end())
+		{
+    		sendClient(443, client, name + " is already on channel");
+    		continue; // passe au channel suivant
+		}
+		else
+			channel._members.push_back(client._fd); // Ajouter le client si pas déjà membre
+        
+        // std::vector<int>::iterator iter = std::find(channel._members.begin(), channel._members.end(), client._fd);
+        // if (iter == channel._members.end())
+        //     channel._members.push_back(client._fd);
+
+        if (channel._members.size() == 1) // Premier membre devient opérateur
+            channel._operators.insert(client._fd);
+    
+        std::string line = ":" + client._nick + " JOIN " + name;
+        sendInChannel(channel, -1, line); // Informer tout le monde
+
+        if (channel._topic.empty()) // Envoyer topic
+            sendClient(331, client, name + " No topic is set");
+        else
+            sendClient(332, client, name + " " + channel._topic);
+
+        // Envoyer NAMES
+        std::string nickList;
+        for (size_t j = 0; j < channel._members.size(); ++j)
+        {
+            Client &c = getClient(channel._members[j]);
+            nickList += c._nick + " ";
+        }
+        sendClient(353, client, name + " NAMES LIST: " + nickList);
+        sendClient(366, client, name + " End of NAMES list");
+
+        joinedAtLeastOne = true;
+    }
+    return joinedAtLeastOne;
 }
+
+
+
+// bool Server::join(t_message &message, Client &client)
+// {
+// 	if (message.params.empty())
+// 	{
+// 		sendClient(461, client, "Not enough parameters");
+// 		return false;
+// 	}
+
+// 	std::string name = message.params[0];
+// 	std::string key = (message.params.size() > 1 ? message.params[1] : "");
+	
+// 	if (name.empty() || name[0] != '#')
+// 	{
+// 		sendClient(403, client, "Invalid channel name");
+// 		return false;
+// 	}
+
+// 	if (_channels.find(name) == _channels.end())
+// 		_channels.insert(std::map<std::string, Channel>::value_type(name, Channel(name)));
+// 	Channel &channel = getChannel(name);
+	
+// 	if (channel._inviteOnly && !channel._invited.count(client._fd))
+// 	{
+// 		sendClient(473, client, name + " Cannot join channel (+i)");
+// 		return false;
+// 	}
+
+// 	if (!channel._key.empty() && channel._key != key)
+// 	{
+// 		sendClient(475, client, name + " Cannot join channel (+k)");
+// 		return false;
+// 	}
+
+// 	if (channel._userLimit > 0 && static_cast<int>(channel._members.size()) >= channel._userLimit)
+// 	{
+// 		sendClient(471, client, name + " Cannot join channel (+l)");
+// 		return false;
+// 	}
+
+// 	std::vector<int>::iterator it = find(channel._members.begin(), channel._members.end(), client._fd);
+// 	if (it == channel._members.end())
+// 		channel._members.push_back(client._fd);
+	
+// 	if (channel._members.size() == 1)
+// 		channel._operators.insert(client._fd);
+
+// 	std::string line = ":" + client._nick + " JOIN " + name;
+// 	sendInChannel(channel, -1, line);
+
+// 	if (channel._topic.empty())
+// 		sendClient(331, client, name + " No topic is set");
+// 	else
+// 		sendClient(332, client, name + " " + channel._topic);
+
+// 	std::string nickList;
+// 	std::vector<int>::iterator iter = channel._members.begin();
+// 	for (; iter != channel._members.end(); ++iter)
+// 	{
+// 		Client &client = getClient(*iter);
+// 		nickList += client._nick + " ";
+// 	}
+	
+// 	sendClient(353, client, name + " NAMES LIST: " + nickList);
+// 	sendClient(366, client, name + " End of NAMES list");
+// 	return true;
+// }
 
 
 bool Server::part(t_message &message, Client &client)
@@ -647,6 +771,15 @@ bool Server::invite(t_message &message, Client &client)
 
 	return true;
 }
+
+
+
+
+
+
+
+
+
 
 bool Server::setMode(Channel &channel, Client &client, t_message &message)
 {
