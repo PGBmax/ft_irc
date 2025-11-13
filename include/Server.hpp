@@ -6,7 +6,7 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/08 18:48:39 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/13 16:07:14 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -56,6 +56,13 @@ class Server
 		Channel &getChannel(std::string &name);
 		void handleLine(int fd, const std::string &line);
 		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
+		
+
+		void sendClient(int code, Client &client, std::string message);
+		void sendMessage(Client &client, std::string message, pollfd &pfd);
+		bool isNickValid(const std::string &nick);
+		
+		
 
 		void ping(t_message &message, Client &client);
 		void pass(t_message &message, Client &client);
