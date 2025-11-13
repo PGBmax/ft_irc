@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/06 22:41:28 by pboucher          #+#    #+#             */
-/*   Updated: 2025/11/10 03:45:09 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/13 11:31:14 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -176,7 +176,7 @@ bool Bot::playConnect4(t_message &message, Client &client, const std::string &ch
 {
 	std::istringstream iss(message.params[1]);
 	std::string command;
-	int column;
+	int column = 0;
 	iss >> command >> column;
 	
 	if (column < 1 || column > 7)
