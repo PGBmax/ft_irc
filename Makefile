@@ -14,7 +14,10 @@ SRC_NAME	=	main.cpp Server.cpp Client.cpp Channel.cpp \
 				commands/topic.cpp \
 				commands/join.cpp \
 				commands/privmsg.cpp \
-				commands/ppnu.cpp
+				commands/ppnu.cpp \
+				utils/utils.cpp \
+				utils/parser.cpp \
+				utils/message.cpp
 
 OBJ_DIR = obj/
 OBJ_NAME = $(SRC_NAME:.cpp=.o)

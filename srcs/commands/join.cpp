@@ -6,14 +6,14 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/13 16:38:24 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/13 16:39:29 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/14 10:50:55 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
 #include <algorithm>
 
-bool Server::join(t_message &message, Client &client)
+bool Server::join(t_message &message, Client &client) // A REGLER
 {
     if (message.params.empty() || message.params.size() > 2)
     {
@@ -40,7 +40,7 @@ bool Server::join(t_message &message, Client &client)
         std::string keyStr = message.params[1]; //key1,key2,key3
         while ((pos = keyStr.find(',', start)) != std::string::npos)
         {
-            keys.push_back(keyStr.substr(start, pos - start));
+            keys.push_back(keyStr.substr(start, pos - start)); // pos = 4 
             start = pos + 1;
         }
         keys.push_back(keyStr.substr(start));
