@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/10 15:40:29 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/14 15:17:56 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -471,8 +471,10 @@ bool Server::privmsg(t_message &message, Client &client)
 
         std::string upperText = text;
         std::transform(upperText.begin(), upperText.end(), upperText.begin(), ::toupper);
-        if (upperText.find("CONNECT4") == 0 || upperText.find("ACCEPT") == 0 || upperText.find("PLAY") == 0 || upperText.find("FORFEIT") == 0) {
-			if (_bot && _bot->handleBotCommand(message, client, target)) {
+        if (upperText.find("CONNECT4") == 0 || upperText.find("ACCEPT") == 0 || upperText.find("PLAY") == 0 || upperText.find("FORFEIT") == 0)
+		{
+			if (_bot && _bot->handleBotCommand(message, client, target))
+			{
 				return true;
 			}
 		}
