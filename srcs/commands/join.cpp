@@ -6,12 +6,14 @@
 /*   By: nolecler <nolecler@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/13 16:38:24 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/17 16:22:30 by nolecler         ###   ########.fr       */
+/*   Updated: 2025/11/17 16:25:03 by nolecler         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
 #include <algorithm>
+
+
 
 bool Server::join(t_message &message, Client &client)
 {
@@ -20,8 +22,9 @@ bool Server::join(t_message &message, Client &client)
         sendClient(461, client, "Not enough or too many parameters");
         return false;
     }
-	
-    std::vector<std::string> channels; 
+
+    // Découper les noms de channels
+    std::vector<std::string> channels;
     size_t start = 0;
     std::string names = message.params[0];
     size_t pos;
@@ -33,11 +36,19 @@ bool Server::join(t_message &message, Client &client)
     }
     channels.push_back(names.substr(start));
 
-    std::vector<std::string> keys;
+    std::vector<std::string> keys; // Découper les clés si presente
     if (message.params.size() > 1)
     {
-        start = 0;
         std::string keyStr = message.params[1];
+
+        if (keyStr.find(",,") != std::string::npos || keyStr[0] == ',' || keyStr[keyStr.size() - 1] == ',') // Vérifier invalidité de la chaîne de clés
+        {
+            for (size_t i = 0; i < channels.size(); ++i)
+                sendClient(475, client, channels[i] + " Cannot join channel (+k)");
+            return false;
+        }
+
+        start = 0;
         while ((pos = keyStr.find(',', start)) != std::string::npos)
         {
             keys.push_back(keyStr.substr(start, pos - start));
@@ -46,7 +57,7 @@ bool Server::join(t_message &message, Client &client)
         keys.push_back(keyStr.substr(start));
     }
 
-    while (keys.size() < channels.size())
+    while (keys.size() < channels.size()) // Remplir les clés manquantes avec des chaînes vides
         keys.push_back("");
 
     bool joined = false;
@@ -61,13 +72,14 @@ bool Server::join(t_message &message, Client &client)
             sendClient(403, client, "Invalid channel name: " + name);
             continue;
         }
-		if (_channels.find(name) == _channels.end())
-		{
-    		Channel newChannel(name);
-    		if (!key.empty())
-        		newChannel._key = key;
-    		_channels.insert(std::map<std::string, Channel>::value_type(name, newChannel));
-		}
+
+        if (_channels.find(name) == _channels.end())
+        {
+            Channel newChannel(name);
+            if (!key.empty())
+                newChannel._key = key;
+            _channels.insert(std::make_pair(name, newChannel));
+        }
 
         Channel &channel = getChannel(name);
 
@@ -85,7 +97,7 @@ bool Server::join(t_message &message, Client &client)
         // }
 
         
-        if (!channel._key.empty() && key != channel._key)
+        if (!channel._key.empty() && key != channel._key) // Vérifier la correspondance de la clé
         {
             sendClient(475, client, name + " Cannot join channel (+k)");
             continue;
@@ -96,25 +108,24 @@ bool Server::join(t_message &message, Client &client)
             sendClient(471, client, name + " Cannot join channel (+l)");
             continue;
         }
-		
-		std::vector<int>::iterator it = std::find(channel._members.begin(), channel._members.end(), client._fd);
-		if (it != channel._members.end())
-		{
-    		sendClient(443, client, name + " is already on channel");
-    		continue; 
-		}
-		else
-			channel._members.push_back(client._fd);
-        
-        if (channel._members.size() == 1) 
+
+        std::vector<int>::iterator it = std::find(channel._members.begin(), channel._members.end(), client._fd); // Vérifier si le client est déjà membre
+        if (it != channel._members.end())
+        {
+            sendClient(443, client, name + " is already on channel");
+            continue;
+        }
+        else
+            channel._members.push_back(client._fd);
+
+        if (channel._members.size() == 1) // Premier membre = opérateur
             channel._operators.insert(client._fd);
 
-        
+        // Informer tout le monde
         std::string line = ":" + client._nick + " JOIN " + name;
-        sendInChannel(channel, -1, line); 
+        sendInChannel(channel, -1, line);
 
-		
-        if (channel._topic.empty())
+        if (channel._topic.empty()) // Afficher topic
             sendClient(331, client, name + " No topic is set");
         else
             sendClient(332, client, name + " " + channel._topic);
@@ -132,8 +143,6 @@ bool Server::join(t_message &message, Client &client)
     }
     return joined;
 }
-
-
 
 // bool Server::join(t_message &message, Client &client)
 // {
