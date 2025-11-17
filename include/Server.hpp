@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:21:21 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/10 03:29:34 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/17 02:25:19 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -39,6 +39,11 @@ class Server
 			public: virtual const char* what() const throw();
 		};
 
+		void botSendToChannel(const std::string &channel, const std::string &message);
+		void botSendToClient(int client_fd, const std::string &message);
+		std::string botGetClientNick(int client_fd);
+		bool botIsClientInChannel(int client_fd, const std::string &channel);
+
 	private :
 		int								_port;
 		std::string						_password;
@@ -59,12 +64,12 @@ class Server
 		void handleLine(int fd, const std::string &line);
 		void sendInChannel(Channel &channel, int senderFd, const std::string &line);
 		
-	public:
-		void sendToChannel(const std::string &channel, const std::string &message);
-		void sendToClient(int client_fd, const std::string &message);
-		std::string getClientNick(int client_fd);
-		bool isClientInChannel(int client_fd, const std::string &channel);
-		int getClientFdByNick(const std::string &nick);
+
+		void sendClient(int code, Client &client, std::string message);
+		void sendMessage(Client &client, std::string message, pollfd &pfd);
+		bool isNickValid(const std::string &nick);
+		
+		
 
 		void ping(t_message &message, Client &client);
 		void pass(t_message &message, Client &client);

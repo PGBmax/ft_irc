@@ -7,7 +7,17 @@ CPP_FLAGS = -I$(INCLUDES) -Wall -Werror -Wextra -std=c++98 -g
 CC = c++
 
 SRC_DIR		=	srcs/
-SRC_NAME	=	main.cpp Server.cpp Client.cpp Channel.cpp Bot.cpp Connect4.cpp
+SRC_NAME	=	main.cpp Server.cpp Client.cpp Channel.cpp Bot.cpp Connect4.cpp \
+				commands/invite.cpp \
+				commands/kickpart.cpp \
+				commands/mode.cpp \
+				commands/topic.cpp \
+				commands/join.cpp \
+				commands/privmsg.cpp \
+				commands/ppnu.cpp \
+				utils/utils.cpp \
+				utils/parser.cpp \
+				utils/message.cpp
 
 OBJ_DIR = obj/
 OBJ_NAME = $(SRC_NAME:.cpp=.o)

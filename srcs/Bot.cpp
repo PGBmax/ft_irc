@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/06 22:41:28 by pboucher          #+#    #+#             */
-/*   Updated: 2025/11/13 11:31:14 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/17 02:36:58 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -46,6 +46,8 @@ bool Bot::handleBotCommand(t_message &message, Client &client, const std::string
 		return startConnect4(message, client, channel);
 	else if (command == "ACCEPT")
 		return acceptConnect4(client, channel);
+	else if (command == "DECLINE")
+		return declineConnect4(client, channel);
 	else if (command == "PLAY")
 		return playConnect4(message, client, channel);
 	else if (command == "FORFEIT")
@@ -64,7 +66,7 @@ bool Bot::startConnect4(t_message &message, Client &client, const std::string &c
 	{
 		if (it->second.getChannel() == channel && 
 			(it->second.getPlayer1Fd() == client._fd || it->second.getPlayer2Fd() == client._fd) &&
-			it->second.getState() != GAME_OVER)
+			it->second.getState() == IN_GAME)
 		{
 			sendToChannel(channel, "[ERROR] " + getClientNick(client._fd) + " is already in a game!");
 			return true;
@@ -123,9 +125,9 @@ bool Bot::startConnect4(t_message &message, Client &client, const std::string &c
 	if (_server)
 	{
 		sendToChannel(channel, "[CHALLENGE] " + getClientNick(client._fd) + " challenges " + targetPlayer + " to Connect 4!");
-		sendToChannel(channel, "[INFO] " + targetPlayer + ", type 'ACCEPT' to accept the challenge!");
+		sendToChannel(channel, "[INFO] " + targetPlayer + ", type 'ACCEPT' or 'DECLINE' !");
 		
-		std::string gameId = generateGameId(channel, client._fd, -2);
+		std::string gameId = generateGameId(channel, client._fd, -2) + "_vs_" + targetPlayer;
 		Connect4 &game = _games[gameId];
 		game.setPlayer1Fd(client._fd);
 		game.setPlayer2Fd(-2);
@@ -142,33 +144,60 @@ bool Bot::startConnect4(t_message &message, Client &client, const std::string &c
 
 bool Bot::acceptConnect4(Client &client, const std::string &channel)
 {
+	std::string clientNick = getClientNick(client._fd);
+	std::string acceptedGameId = "";
+	int challengerFd = -1;
+	
 	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
 	{
 		if (it->second.getChannel() == channel && 
 			it->second.getState() == WAITING_FOR_ACCEPT &&
-			it->second.getPlayer2Fd() == -2)
-			{
-			
-			Connect4 &game = it->second;
-			game.setPlayer2Fd(client._fd);
-			game.setState(IN_GAME);
-			
-			srand(time(NULL));
-			game.setCurrentPlayer((rand() % 2) + 1);
-			
-			sendToChannel(channel, "[GAME] Game accepted! " + getClientNick(game.getPlayer1Fd()) + " [R] vs " + getClientNick(game.getPlayer2Fd()) + " [Y]");
-			displayBoard(game, channel);
-			
-			if (game.getCurrentPlayer() == 1)
-				sendToChannel(channel, "[RED] " + getClientNick(game.getPlayer1Fd()) + "'s turn! Use 'PLAY <column>' (1-7)");
-			else
-				sendToChannel(channel, "[YELLOW] " + getClientNick(game.getPlayer2Fd()) + "'s turn! Use 'PLAY <column>' (1-7)");
-			
-			return true;
+			it->second.getPlayer2Fd() == -2 &&
+			it->first.find("_vs_" + clientNick) != std::string::npos)
+		{
+			acceptedGameId = it->first;
+			challengerFd = it->second.getPlayer1Fd();
+			break;
 		}
 	}
 	
-	sendToChannel(channel, "[ERROR] No pending Connect 4 challenge found!");
+	if (acceptedGameId.empty())
+	{
+		sendToChannel(channel, "[ERROR] No pending Connect 4 challenge found for you!");
+		return true;
+	}
+	
+	std::vector<std::string> gamesToRemove;
+	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
+	{
+		if (it->second.getState() == WAITING_FOR_ACCEPT &&
+			it->second.getPlayer1Fd() == challengerFd &&
+			it->first != acceptedGameId)
+		{
+			gamesToRemove.push_back(it->first);
+		}
+	}
+	
+	for (std::vector<std::string>::iterator it = gamesToRemove.begin(); it != gamesToRemove.end(); ++it)
+	{
+		_games.erase(*it);
+	}
+	
+	Connect4 &game = _games[acceptedGameId];
+	game.setPlayer2Fd(client._fd);
+	game.setState(IN_GAME);
+	
+	srand(time(NULL));
+	game.setCurrentPlayer((rand() % 2) + 1);
+	
+	sendToChannel(channel, "[GAME] Game accepted! " + getClientNick(game.getPlayer1Fd()) + " [R] vs " + getClientNick(game.getPlayer2Fd()) + " [Y]");
+	displayBoard(game, channel);
+	
+	if (game.getCurrentPlayer() == 1)
+		sendToChannel(channel, "[RED] " + getClientNick(game.getPlayer1Fd()) + "'s turn! Use 'PLAY <column>' (1-7)");
+	else
+		sendToChannel(channel, "[YELLOW] " + getClientNick(game.getPlayer2Fd()) + "'s turn! Use 'PLAY <column>' (1-7)");
+	
 	return true;
 }
 
@@ -504,26 +533,26 @@ void Bot::endGame(const std::string &gameId, const std::string &reason)
 void Bot::sendToChannel(const std::string &channel, const std::string &message)
 {
 	if (_server)
-		_server->sendToChannel(channel, message);
+		_server->botSendToChannel(channel, message);
 }
 
 void Bot::sendToClient(int client_fd, const std::string &message)
 {
 	if (_server)
-		_server->sendToClient(client_fd, message);
+		_server->botSendToClient(client_fd, message);
 }
 
 std::string Bot::getClientNick(int client_fd)
 {
 	if (_server)
-		return _server->getClientNick(client_fd);
+		return _server->botGetClientNick(client_fd);
 	return "Player" + intToString(client_fd);
 }
 
 bool Bot::isClientInChannel(int client_fd, const std::string &channel)
 {
 	if (_server)
-		return _server->isClientInChannel(client_fd, channel);
+		return _server->botIsClientInChannel(client_fd, channel);
 	return false;
 }
 
@@ -555,5 +584,36 @@ void Bot::onPlayerLeftChannel(int client_fd, const std::string &channel)
 	
 	for (std::vector<std::string>::iterator it = gamesToEnd.begin(); it != gamesToEnd.end(); ++it)
 		endGame(*it, "Player left channel");
+}
+
+bool Bot::declineConnect4(Client &client, const std::string &channel)
+{
+	std::string clientNick = getClientNick(client._fd);
+	std::string declinedGameId = "";
+	int challengerFd = -1;
+	
+	for (std::map<std::string, Connect4>::iterator it = _games.begin(); it != _games.end(); ++it)
+	{
+		if (it->second.getChannel() == channel && 
+			it->second.getState() == WAITING_FOR_ACCEPT &&
+			it->second.getPlayer2Fd() == -2 &&
+			it->first.find("_vs_" + clientNick) != std::string::npos)
+		{
+			declinedGameId = it->first;
+			challengerFd = it->second.getPlayer1Fd();
+			break;
+		}
+	}
+	
+	if (declinedGameId.empty())
+	{
+		sendToChannel(channel, "[ERROR] No pending Connect 4 challenge found for you!");
+		return true;
+	}
+	
+	sendToChannel(channel, "[DECLINE] " + clientNick + " declined the Connect 4 challenge from " + getClientNick(challengerFd) + "!");
+	_games.erase(declinedGameId);
+	
+	return true;
 }
 

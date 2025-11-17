@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/06 22:50:41 by pboucher          #+#    #+#             */
-/*   Updated: 2025/11/14 15:14:01 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/17 02:31:58 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,6 +32,7 @@ class Bot
 		
 		bool startConnect4(struct s_message &message, Client &client, const std::string &channel);
 		bool acceptConnect4(Client &client, const std::string &channel);
+		bool declineConnect4(Client &client, const std::string &channel);
 		bool playConnect4(struct s_message &message, Client &client, const std::string &channel);
 		bool forfeitConnect4(Client &client, const std::string &channel);
 		
