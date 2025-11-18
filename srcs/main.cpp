@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/18 13:50:38 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/17 02:25:12 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/18 14:16:34 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,6 +31,11 @@ int main(int ac, char **av)
         return 1;
     }
     int port = std::atoi(av[1]);
+    if (port <= 0 || port > 65535)
+    {
+        std::cerr << RGB(255, 0, 0) << "Error: Invalid Port: (" << port << ")" << CLR << std::endl;
+        return 2;
+    }
     std::string password = av[2];
     
     try {

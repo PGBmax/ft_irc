@@ -6,7 +6,7 @@
 /*   By: pboucher <pboucher@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/08/19 10:57:28 by nolecler          #+#    #+#             */
-/*   Updated: 2025/11/17 02:58:40 by pboucher         ###   ########.fr       */
+/*   Updated: 2025/11/18 14:49:00 by pboucher         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,11 +16,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <stdexcept>
 #include <arpa/inet.h>
-#include <cerrno>
 #include <algorithm>
 #include <csignal>
 
@@ -50,7 +46,7 @@ Server::~Server()
 void Server::setupListenSocket()
 {
 	_listenFd = socket(AF_INET, SOCK_STREAM, 0);
-	if (_listenFd == -1)
+	if (_listenFd == -1) 
 		throw std::runtime_error("listen socket creation failed");
 
 	int turnOn = 1;
@@ -82,28 +78,18 @@ void Server::setupListenSocket()
 
 void Server::run()
 {
-	time_t lastTimeoutCheck = time(NULL);
 	
 	while (!g_signal)
 	{
 		int n = poll(&_pfds[0], _pfds.size(), 1000);
 		if (n < 0)
 		{
-			if (errno == EINTR)
-				continue;
+			if (g_signal)
+				throw Server::SignalHandler();
 			throw std::runtime_error("poll failed");
 		}
-
 		if (g_signal)
 			break;
-
-		time_t current_time = time(NULL);
-		if (current_time - lastTimeoutCheck > 30) {
-			if (_bot) {
-				
-			}
-			lastTimeoutCheck = current_time;
-		}
 
 		if (_pfds[0].revents & POLLIN)
 			acceptNewClient();
@@ -165,7 +151,7 @@ void Server::readFromClient(int fd)
 	ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
 	if (n <= 0)
 	{
-		if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
+		if (n == 0)
 			return closeClient(fd);
 		return;
 	}
