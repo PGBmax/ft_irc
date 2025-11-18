@@ -42,7 +42,7 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 					}
 					else
 					{
-						sendClient(461, client, "Not enough parameters");
+						sendClient(461, client, "MODE :Not enough parameters");
 						return false;
 					}
 				}
@@ -63,7 +63,7 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 					}
 					else
 					{
-						sendClient(461, client, "Not enough parameters");
+						sendClient(461, client, "MODE :Not enough parameters");
 						return false;
 					}
 				}
@@ -97,13 +97,13 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 				}
 				else
 				{
-					sendClient(461, client, "Not enough parameters");
+					sendClient(461, client, "MODE :Not enough parameters");
 					return false;
 				}
 			}
 			else
 			{
-				sendClient(472, client, "Unknown mode char");
+				sendClient(472, client, ":Unknown mode char");
 				return false;
 			}
 		}
@@ -115,17 +115,17 @@ bool Server::setMode(Channel &channel, Client &client, t_message &message)
 void Server::mode(t_message &message, Client &client)
 {
 	if (message.params.empty())
-		return sendClient(461, client, "Not enough parameters");
+		return sendClient(461, client, "MODE :Not enough parameters");
 	
 	std::string name = message.params[0];
 
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
-		return sendClient(403, client, "No such channel");
+		return sendClient(403, client, name + " :No such channel");
 	
 	Channel &channel = it->second;
 	if (!channel.isMember(client._fd))
-		return sendClient(442, client, "You're not on that channel");
+		return sendClient(442, client, name + " :You're not on that channel");
 
 	if (message.params.size() == 1)
 	{
@@ -144,7 +144,7 @@ void Server::mode(t_message &message, Client &client)
 	else if (message.params.size() > 1)
 	{
 		if (!channel.isOperator(client._fd))
-			return sendClient(482, client, "You're not channel operator");
+			return sendClient(482, client, name + " :You're not channel operator");
 		bool success = setMode(channel, client, message);
 		if (success)
 		{
@@ -153,7 +153,7 @@ void Server::mode(t_message &message, Client &client)
 			if(message.params.size() > 2)
 				target = message.params[2];
 
-			std::string reply = client._nick + ": MODE " + channel._name + " " + modeChange;
+			std::string reply = ":" + client._nick + " MODE " + channel._name + " " + modeChange;
 			if (!target.empty())
 				reply += " " + target;
 			sendInChannel(channel, -1, reply);

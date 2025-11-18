@@ -48,6 +48,7 @@ class Server
 		int								_port;
 		std::string						_password;
 		int								_listenFd;
+		std::string						_serverName;
 		std::vector<pollfd>				_pfds;
 		std::map<int, Client>			_clients;
 		std::map<std::string, Channel> 	_channels;
@@ -84,4 +85,5 @@ class Server
 		bool kick(t_message &message, Client &client);
 		bool topic(t_message &message, Client &client);
 		bool invite(t_message &message, Client &client);
+		bool findPollIndex(int fd, size_t &index) const;
 };

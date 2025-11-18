@@ -16,10 +16,12 @@
 #include <cstdlib>
 #include <csignal>
 
-void signal_handler(int pid)
+bool g_signal = false;
+
+static void signal_handler(int pid)
 {
     if (pid == SIGINT || pid == SIGQUIT)
-        throw Server::SignalHandler();
+        g_signal = true;
 }
 
 int main(int ac, char **av)

@@ -16,7 +16,7 @@ bool Server::privmsg(t_message &message, Client &client)
 {
     if (message.params.size() < 2)
 	{
-        sendClient(461, client, "Not enough parameters");
+        sendClient(461, client, "PRIVMSG :Not enough parameters");
 		return false;
 	}
 
@@ -28,14 +28,14 @@ bool Server::privmsg(t_message &message, Client &client)
 	{
         if (_channels.find(target) == _channels.end())
 		{
-            sendClient(403, client, "No such channel");
+            sendClient(403, client, target + " :No such channel");
 			return false;
 		}
 
         Channel &channel = getChannel(target);
         if (!channel.isMember(client._fd))
 		{
-            sendClient(404, client, "Cannot send to channel");
+            sendClient(404, client, target + " :Cannot send to channel");
 			return false;
 		}
 
@@ -53,7 +53,7 @@ bool Server::privmsg(t_message &message, Client &client)
 		}
 		catch(...)
 		{
-			sendClient(401, client, "No such nick");
+			sendClient(401, client, target + " :No such nick");
 			return false;
 		}
     }

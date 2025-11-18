@@ -18,8 +18,11 @@ void Server::sendClient(int code, Client &client, std::string message)
 {
 	std::stringstream ss;
 
-	ss << code << " " << (client._nick.empty() ? "*" : client._nick) << ": " << message << "\r\n";
+	ss << ":" << _serverName << " " << code << " " << (client._nick.empty() ? "*" : client._nick) << " " << message << "\r\n";
 	client._out += ss.str();
+	size_t idx;
+	if (findPollIndex(client._fd, idx))
+		_pfds[idx].events |= POLLOUT;
 }
 
 void Server::sendMessage(Client &client, std::string message, pollfd &pfd)
@@ -47,7 +50,7 @@ void Server::userRegister(Client &client)
 	{
 		client._registered = true;
 		std::cout << "Client " << client._fd << " registered with name " << client._name << std::endl;
-		return sendClient(001, client, "Welcome to ft_irc");
+		return sendClient(001, client, ":Welcome to ft_irc");
 	}
 }
 

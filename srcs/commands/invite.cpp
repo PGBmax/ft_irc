@@ -16,7 +16,7 @@ bool Server::invite(t_message &message, Client &client)
 {
 	if (message.params.size() < 2)
 	{
-		sendClient(461, client, "Not enough parameters");
+		sendClient(461, client, "INVITE :Not enough parameters");
 		return false;
 	}
 
@@ -26,7 +26,7 @@ bool Server::invite(t_message &message, Client &client)
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		sendClient(403, client, "No such channel");
+		sendClient(403, client, channelName + " :No such channel");
 		return false;
 	}
 
@@ -34,13 +34,13 @@ bool Server::invite(t_message &message, Client &client)
 
 	if (!channel.isMember(client._fd))
 	{
-		sendClient(442, client, "You're not on that channel");
+		sendClient(442, client, channelName + " :You're not on that channel");
 		return false;
 	}
 
 	if (channel._inviteOnly && !channel.isOperator(client._fd))
 	{
-		sendClient(482, client, "You're not channel operator");
+		sendClient(482, client, channelName + " :You're not channel operator");
 		return false;
 	}
 
@@ -51,13 +51,13 @@ bool Server::invite(t_message &message, Client &client)
 	}
 	catch(...)
 	{
-		sendClient(401, client, "No such nick");
+		sendClient(401, client, targetNick + " :No such nick");
 		return false;
 	}
 
 	if (channel.isMember(targetClient->_fd))
 	{
-		sendClient(443, client, targetNick + " is already on channel");
+		sendClient(443, client, targetNick + " :is already on channel");
 		return false;
 	}
 
@@ -65,7 +65,7 @@ bool Server::invite(t_message &message, Client &client)
 
 	sendClient(341, client, targetNick + " " + channelName);
 	
-	std::string inviteMessage = client._nick + " INVITE " + targetNick + " " + channelName;
+	std::string inviteMessage = ":" + client._nick + " INVITE " + targetNick + " " + channelName;
 	sendMessage(*targetClient, inviteMessage, _pfds[getPID(targetClient->_fd)]);
 
 	return true;

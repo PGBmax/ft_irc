@@ -16,7 +16,7 @@ bool Server::topic(t_message &message, Client &client)
 {
 	if (message.params.empty())
 	{
-		sendClient(461, client, "Not enough parameters");
+		sendClient(461, client, "TOPIC :Not enough parameters");
 		return false;
 	}
 
@@ -25,7 +25,7 @@ bool Server::topic(t_message &message, Client &client)
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		sendClient(403, client, "No such channel");
+		sendClient(403, client, channelName + " :No such channel");
 		return false;
 	}
 
@@ -33,22 +33,22 @@ bool Server::topic(t_message &message, Client &client)
 
 	if (!channel.isMember(client._fd))
 	{
-		sendClient(442, client, "You're not on that channel");
+		sendClient(442, client, channelName + " :You're not on that channel");
 		return false;
 	}
 
 	if (message.params.size() == 1)
 	{
 		if (channel._topic.empty())
-			sendClient(331, client, channelName + " No topic is set");
+			sendClient(331, client, channelName + " :No topic is set");
 		else
-			sendClient(332, client, channelName + " " + channel._topic);
+			sendClient(332, client, channelName + " :" + channel._topic);
 		return true;
 	}
 
 	if (channel._topicOperatorOnly && !channel.isOperator(client._fd))
 	{
-		sendClient(482, client, "You're not channel operator");
+		sendClient(482, client, channelName + " :You're not channel operator");
 		return false;
 	}
 

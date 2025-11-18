@@ -21,6 +21,10 @@
 #include <stdexcept>
 #include <arpa/inet.h>
 #include <cerrno>
+#include <algorithm>
+#include <csignal>
+
+extern bool g_signal;
 
 static void set_nonblocking(int fd)
 {
@@ -28,7 +32,8 @@ static void set_nonblocking(int fd)
 		throw std::runtime_error("failed to set O_NONBLOCK flag");
 }
 
-Server::Server(int port, const std::string &password) : _port(port), _password(password), _listenFd(-1)
+Server::Server(int port, const std::string &password)
+	: _port(port), _password(password), _listenFd(-1), _serverName("ft_irc")
 {
 	setupListenSocket();
 	_bot = new Bot(this);
@@ -79,7 +84,7 @@ void Server::run()
 {
 	time_t lastTimeoutCheck = time(NULL);
 	
-	while (true)
+	while (!g_signal)
 	{
 		int n = poll(&_pfds[0], _pfds.size(), 1000);
 		if (n < 0)
@@ -88,6 +93,9 @@ void Server::run()
 				continue;
 			throw std::runtime_error("poll failed");
 		}
+
+		if (g_signal)
+			break;
 
 		time_t current_time = time(NULL);
 		if (current_time - lastTimeoutCheck > 30) {
@@ -192,6 +200,9 @@ void Server::botSendToClient(int client_fd, const std::string &message)
 	try {
 		Client &client = getClient(client_fd);
 		client._out += message + "\r\n";
+		size_t idx;
+		if (findPollIndex(client_fd, idx))
+			_pfds[idx].events |= POLLOUT;
 	} catch (...) {
 		
 	}

@@ -17,7 +17,7 @@ bool Server::kick(t_message &message, Client &client)
 {
 	if (message.params.size() < 2)
 	{
-		sendClient(461, client, "Not enough parameters");
+		sendClient(461, client, "KICK :Not enough parameters");
 		return false;
 	}
 
@@ -28,7 +28,7 @@ bool Server::kick(t_message &message, Client &client)
 	std::map<std::string, Channel>::iterator it = _channels.find(channelName);
 	if (it == _channels.end())
 	{
-		sendClient(403, client, "No such channel");
+		sendClient(403, client, channelName + " :No such channel");
 		return false;
 	}
 
@@ -36,12 +36,12 @@ bool Server::kick(t_message &message, Client &client)
 
 	if (!channel.isMember(client._fd))
 	{
-		sendClient(442, client, "You're not on that channel");
+		sendClient(442, client, channelName + " :You're not on that channel");
 		return false;
 	}
 	if (!channel.isOperator(client._fd))
 	{
-		sendClient(482, client, "You're not channel operator");
+		sendClient(482, client, channelName + " :You're not channel operator");
 		return false;
 	}
 
@@ -52,19 +52,19 @@ bool Server::kick(t_message &message, Client &client)
 	}
 	catch(...)
 	{
-		sendClient(401, client, "No such nick");
+		sendClient(401, client, targetNick + " :No such nick");
 		return false;
 	}
 
 	if (!channel.isMember(targetClient->_fd))
 	{
-		sendClient(441, client, targetNick + " They aren't on that channel");
+		sendClient(441, client, targetNick + " " + channelName + " :They aren't on that channel");
 		return false;
 	}
 
 	if (targetClient->_fd == client._fd)
 	{
-		sendClient(484, client, "You cannot kick yourself from the channel");
+		sendClient(484, client, channelName + " :You cannot kick yourself from the channel");
 		return false;
 	}
 
@@ -75,6 +75,9 @@ bool Server::kick(t_message &message, Client &client)
 	if (iter != channel._members.end())
 		channel._members.erase(iter);
 		
+	if (_bot)
+		_bot->onPlayerLeftChannel(targetClient->_fd, channelName);
+
 	channel._operators.erase(targetClient->_fd);
 	channel._invited.erase(targetClient->_fd);
 
@@ -90,7 +93,7 @@ bool Server::part(t_message &message, Client &client)
 {
 	if (message.params.empty())
 	{
-		sendClient(461, client, "Not enough parameters");
+		sendClient(461, client, "PART :Not enough parameters");
 		return false;
 	}
 
@@ -98,19 +101,19 @@ bool Server::part(t_message &message, Client &client)
 	std::map<std::string, Channel>::iterator it = _channels.find(name);
 	if (it == _channels.end())
 	{
-		sendClient(403, client, "No such channel");
+		sendClient(403, client, name + " :No such channel");
 		return false;
 	}
 
 	Channel &channel = it->second;
 	if (!channel.isMember(client._fd))
 	{
-		sendClient(442, client, "You're not on that channel");
+		sendClient(442, client, name + " :You're not on that channel");
 		return false;
 	}
 
 	std::string reason = message.params.size() > 1 ? message.params[1] : "Leaving";
-	std::string line = client._nick + " PART " + name + " :" + reason;
+	std::string line = ":" + client._nick + " PART " + name + " :" + reason;
 	sendInChannel(channel, -1, line);
 
 	std::vector<int>::iterator iter = find(channel._members.begin(), channel._members.end(), client._fd);
@@ -121,5 +124,7 @@ bool Server::part(t_message &message, Client &client)
 		_channels.erase(it);
 	else if (!channel._members.empty() && channel._operators.empty())
 		channel.addOperator(channel._members[0]);
+	if (_bot)
+		_bot->onPlayerLeftChannel(client._fd, name);
 	return true;
 }

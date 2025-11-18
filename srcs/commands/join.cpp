@@ -19,7 +19,7 @@ bool Server::join(t_message &message, Client &client)
 {
     if (message.params.empty() || message.params.size() > 2)
     {
-        sendClient(461, client, "Not enough or too many parameters");
+        sendClient(461, client, "JOIN :Not enough or too many parameters");
         return false;
     }
 
@@ -40,10 +40,10 @@ bool Server::join(t_message &message, Client &client)
     {
         std::string keyStr = message.params[1];
 
-        if (keyStr.find(",,") != std::string::npos || keyStr[0] == ',' || keyStr[keyStr.size() - 1] == ',')
+        if (keyStr.empty() || keyStr.find(",,") != std::string::npos || keyStr[0] == ',' || keyStr[keyStr.size() - 1] == ',')
         {
             for (size_t i = 0; i < channels.size(); ++i)
-                sendClient(475, client, channels[i] + " Cannot join channel (+k)");
+                sendClient(475, client, channels[i] + " :Cannot join channel (+k)");
             return false;
         }
 
@@ -68,15 +68,13 @@ bool Server::join(t_message &message, Client &client)
 
         if (name.empty() || name[0] != '#')
         {
-            sendClient(403, client, "Invalid channel name: " + name);
+            sendClient(403, client, name + " :Invalid channel name");
             continue;
         }
 
         if (_channels.find(name) == _channels.end())
         {
             Channel newChannel(name);
-            if (!key.empty())
-                newChannel._key = key;
             _channels.insert(std::make_pair(name, newChannel));
         }
 
@@ -84,26 +82,26 @@ bool Server::join(t_message &message, Client &client)
 
         if (channel._inviteOnly && channel._invited.count(client._fd) == 0)
         {
-            sendClient(473, client, name + " Cannot join channel (+i)");
+            sendClient(473, client, name + " :Cannot join channel (+i)");
             continue;
         }
         
         if (!channel._key.empty() && key != channel._key)
         {
-            sendClient(475, client, name + " Cannot join channel (+k)");
+            sendClient(475, client, name + " :Cannot join channel (+k)");
             continue;
         }
 
         if (channel._userLimit > 0 && static_cast<int>(channel._members.size()) >= channel._userLimit)
         {
-            sendClient(471, client, name + " Cannot join channel (+l)");
+            sendClient(471, client, name + " :Cannot join channel (+l)");
             continue;
         }
 
         std::vector<int>::iterator it = std::find(channel._members.begin(), channel._members.end(), client._fd);
         if (it != channel._members.end())
         {
-            sendClient(443, client, name + " is already on channel");
+            sendClient(443, client, name + " :is already on channel");
             continue;
         }
         else
@@ -117,9 +115,9 @@ bool Server::join(t_message &message, Client &client)
         sendInChannel(channel, -1, line);
 
         if (channel._topic.empty()) // Afficher topic
-            sendClient(331, client, name + " No topic is set");
+            sendClient(331, client, name + " :No topic is set");
         else
-            sendClient(332, client, name + " " + channel._topic);
+            sendClient(332, client, name + " :" + channel._topic);
 
         std::string nickList; // Afficher liste des membres
         for (size_t j = 0; j < channel._members.size(); ++j)
@@ -127,8 +125,8 @@ bool Server::join(t_message &message, Client &client)
             Client &c = getClient(channel._members[j]);
             nickList += c._nick + " ";
         }
-        sendClient(353, client, name + " NAMES LIST: " + nickList);
-        sendClient(366, client, name + " End of NAMES list");
+        sendClient(353, client, name + " :" + nickList);
+        sendClient(366, client, name + " :End of NAMES list");
 
         joined = true;
     }
